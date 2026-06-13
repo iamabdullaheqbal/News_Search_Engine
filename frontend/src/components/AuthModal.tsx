@@ -1,10 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useState } from 'react';
 import { X } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { getGoogleAuthUrl, getMe } from '@/lib/api';
+import { getGoogleAuthUrl } from '@/lib/api';
 
 interface AuthModalProps {
   isOpen: boolean;

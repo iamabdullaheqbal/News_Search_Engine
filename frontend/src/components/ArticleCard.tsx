@@ -18,13 +18,13 @@ export function ArticleCard({ article, featured = false }: ArticleCardProps) {
               <img
                 src={article.imageUrl}
                 alt={article.title}
-                className="w-full h-[400px] object-cover transform group-hover:scale-105 transition-transform duration-700 ease-out"
+                className="w-full h-64 sm:h-80 md:h-[400px] object-cover transform group-hover:scale-105 transition-transform duration-700 ease-out"
               />
             ) : (
-              <div className="w-full h-[400px] bg-cream-dark" aria-hidden="true" />
+              <div className="w-full h-64 sm:h-80 md:h-[400px] bg-cream-dark" aria-hidden="true" />
             )}
           </div>
-          <div className="flex items-center gap-3 mb-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-3">
             <span className="text-xs font-bold tracking-wider uppercase bg-charcoal text-cream px-2 py-1">
               {article.category}
             </span>
@@ -32,11 +32,11 @@ export function ArticleCard({ article, featured = false }: ArticleCardProps) {
               {article.source} · {article.readTime}
             </span>
           </div>
-          <h2 className="font-serif text-4xl md:text-5xl italic leading-tight mb-4 group-hover:text-charcoal-light transition-colors">
+          <h2 className="font-serif text-3xl sm:text-4xl md:text-5xl italic leading-tight mb-4 group-hover:text-charcoal-light transition-colors">
             {article.title}
           </h2>
           {article.dek && (
-            <p className="text-lg text-charcoal-light leading-relaxed max-w-3xl">{article.dek}</p>
+            <p className="text-base sm:text-lg text-charcoal-light leading-relaxed max-w-3xl">{article.dek}</p>
           )}
         </article>
       </Link>
@@ -51,10 +51,10 @@ export function ArticleCard({ article, featured = false }: ArticleCardProps) {
             <img
               src={article.imageUrl}
               alt={article.title}
-              className="w-full h-48 object-cover transform group-hover:scale-105 transition-transform duration-700 ease-out"
+              className="w-full h-44 sm:h-48 object-cover transform group-hover:scale-105 transition-transform duration-700 ease-out"
             />
           ) : (
-            <div className="w-full h-48 bg-cream-dark" aria-hidden="true" />
+            <div className="w-full h-44 sm:h-48 bg-cream-dark" aria-hidden="true" />
           )}
         </div>
         <div className="flex items-center gap-2 mb-2">

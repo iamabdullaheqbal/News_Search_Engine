@@ -34,17 +34,17 @@ export function Sidebar() {
     : 'Tap a topic to personalize your feed. Stored in a cookie — nothing leaves the browser.';
 
   return (
-    <aside className="w-full lg:w-80 flex-shrink-0 space-y-12">
+    <aside className="w-full lg:w-80 flex-shrink-0 space-y-10 lg:space-y-12">
       {/* Trending Now */}
       <section>
         <h3 className="text-xs font-bold tracking-wider uppercase mb-6">Trending Now</h3>
-        <div className="space-y-5">
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-1">
           {(trending.length > 0 ? trending : ['Loading…']).map((title, i) => (
             <article key={i} className="flex gap-4 group cursor-pointer">
               <span className="text-sm font-serif italic text-charcoal-light/50 mt-0.5">
                 {String(i + 1).padStart(2, '0')}
               </span>
-              <h4 className="font-serif text-lg leading-tight group-hover:text-charcoal-light transition-colors">
+              <h4 className="font-serif text-base sm:text-lg leading-tight group-hover:text-charcoal-light transition-colors">
                 {title}
               </h4>
             </article>

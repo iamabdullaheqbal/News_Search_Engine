@@ -22,8 +22,11 @@ export function SearchResults() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    setQuery(searchParams.get('q') || '');
-    setActiveCategory(null);
+    const nextQuery = searchParams.get('q') || '';
+    queueMicrotask(() => {
+      setQuery(nextQuery);
+      setActiveCategory(null);
+    });
   }, [searchParams]);
 
   const doSearch = useCallback(async (q: string, cat: string | null) => {
@@ -42,8 +45,10 @@ export function SearchResults() {
   }, []);
 
   useEffect(() => {
-    if (initialQuery) doSearch(initialQuery, activeCategory);
-    else { setResults([]); setTotal(0); }
+    queueMicrotask(() => {
+      if (initialQuery) doSearch(initialQuery, activeCategory);
+      else { setResults([]); setTotal(0); }
+    });
   }, [initialQuery, activeCategory, doSearch]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -84,13 +89,13 @@ export function SearchResults() {
           onSubmit={handleSubmit}
           className="flex items-center border-b-2 border-charcoal pb-3 mb-2"
         >
-          <Search className="w-6 h-6 text-charcoal-light mr-3" />
+          <Search className="w-5 h-5 sm:w-6 sm:h-6 text-charcoal-light mr-2 sm:mr-3 flex-shrink-0" />
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search the global record..."
-            className="flex-1 bg-transparent border-none outline-none font-serif italic text-3xl md:text-4xl text-charcoal placeholder:text-charcoal-light/40"
+            className="min-w-0 flex-1 bg-transparent border-none outline-none font-serif italic text-2xl sm:text-3xl md:text-4xl text-charcoal placeholder:text-charcoal-light/40"
           />
           {query && (
             <button
@@ -152,8 +157,8 @@ export function SearchResults() {
           {loading ? (
             <div className="space-y-8 animate-pulse">
               {[...Array(3)].map((_, i) => (
-                <div key={i} className="flex gap-6 pb-10 border-b border-border">
-                  <div className="w-64 h-40 bg-cream-dark/40 rounded flex-shrink-0" />
+                <div key={i} className="flex flex-col sm:flex-row gap-6 pb-10 border-b border-border">
+                  <div className="w-full sm:w-64 h-40 bg-cream-dark/40 rounded flex-shrink-0" />
                   <div className="flex-1 space-y-3">
                     <div className="h-4 bg-cream-dark/40 rounded w-1/4" />
                     <div className="h-8 bg-cream-dark/40 rounded" />
@@ -185,7 +190,7 @@ export function SearchResults() {
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-2">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
                       <span className="text-xxs font-bold tracking-wider uppercase bg-charcoal text-cream px-1.5 py-0.5">
                         {article.category}
                       </span>

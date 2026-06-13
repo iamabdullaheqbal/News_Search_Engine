@@ -60,9 +60,9 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
     <div className="min-h-screen flex flex-col">
       <Header />
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 md:py-12">
-        <div className="border-b border-charcoal pb-6 mb-12">
+        <div className="border-b border-charcoal pb-6 mb-8 md:mb-12">
           <p className="text-xs font-bold tracking-widest uppercase text-charcoal-light mb-3">Section</p>
-          <h1 className="font-serif text-6xl md:text-7xl italic leading-none mb-4">
+          <h1 className="font-serif text-5xl sm:text-6xl md:text-7xl italic leading-none mb-4">
             {category.charAt(0) + category.slice(1).toLowerCase()}
           </h1>
           <p className="text-lg text-charcoal-light max-w-2xl">{tagline}</p>

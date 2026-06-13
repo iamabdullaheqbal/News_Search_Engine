@@ -27,11 +27,14 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
   useEffect(() => {
     if (isOpen) {
       setTimeout(() => inputRef.current?.focus(), 10);
-    } else {
-      setQuery('');
-      setResults([]);
     }
   }, [isOpen]);
+
+  const closeAndReset = useCallback(() => {
+    onClose();
+    setQuery('');
+    setResults([]);
+  }, [onClose]);
 
   const doSearch = useCallback((q: string) => {
     if (!q.trim()) { setResults([]); return; }
@@ -54,18 +57,18 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
     e.preventDefault();
     if (query.trim()) {
       router.push(`/search?q=${encodeURIComponent(query.trim())}`);
-      onClose();
+      closeAndReset();
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[10vh] sm:pt-[20vh] px-4">
+    <div className="fixed inset-0 z-50 flex items-start justify-center px-3 pt-3 sm:px-4 sm:pt-[20vh]">
       <div
         className="fixed inset-0 bg-cream/80 backdrop-blur-sm transition-opacity"
-        onClick={onClose}
+        onClick={closeAndReset}
       />
 
-      <div className="relative w-full max-w-2xl bg-cream border border-border shadow-2xl rounded-lg overflow-hidden flex flex-col max-h-[80vh]">
+      <div className="relative w-full max-w-2xl bg-cream border border-border shadow-2xl rounded-lg overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[80vh]">
         <form
           onSubmit={handleSubmit}
           className="flex items-center px-4 py-3 border-b border-border"
@@ -74,14 +77,14 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
           <input
             ref={inputRef}
             type="text"
-            className="flex-1 bg-transparent border-none outline-none text-lg text-charcoal placeholder:text-charcoal-light/50 font-sans"
+            className="min-w-0 flex-1 bg-transparent border-none outline-none text-base sm:text-lg text-charcoal placeholder:text-charcoal-light/50 font-sans"
             placeholder="Search the global record..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
           <button
             type="button"
-            onClick={onClose}
+            onClick={closeAndReset}
             className="p-1 hover:bg-border rounded-md text-charcoal-light transition-colors"
           >
             <X className="w-5 h-5" />
@@ -116,14 +119,14 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
                 <Link
                   key={article.id}
                   href={`/article/${article.id}`}
-                  onClick={onClose}
-                  className="w-full text-left px-4 py-3 hover:bg-border/50 transition-colors flex items-start gap-4 group"
+                  onClick={closeAndReset}
+                  className="w-full text-left px-3 sm:px-4 py-3 hover:bg-border/50 transition-colors flex items-start gap-3 sm:gap-4 group"
                 >
                   {article.image_url && (
                     <img
                       src={article.image_url}
                       alt={article.title}
-                      className="w-16 h-16 object-cover rounded"
+                      className="w-14 h-14 sm:w-16 sm:h-16 object-cover rounded"
                     />
                   )}
                   <div className="flex-1 min-w-0">
@@ -133,7 +136,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
                       </span>
                       <span className="text-xs text-charcoal-light">{article.source}</span>
                     </div>
-                    <h4 className="font-serif text-lg leading-tight group-hover:text-accent transition-colors truncate">
+                    <h4 className="font-serif text-base sm:text-lg leading-tight group-hover:text-accent transition-colors line-clamp-2">
                       {article.title}
                     </h4>
                   </div>

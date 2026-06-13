@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 
 const Twitter = (props: React.SVGProps<SVGSVGElement>) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z"/></svg>;
@@ -41,19 +42,19 @@ export function Footer() {
             </p>
           </div>
           <form onSubmit={handleSubmit} className="flex w-full md:justify-end">
-            <div className="flex w-full max-w-md border border-cream/20 bg-charcoal-light/30 focus-within:border-cream/60 transition-colors">
+            <div className="flex w-full max-w-md flex-col sm:flex-row border border-cream/20 bg-charcoal-light/30 focus-within:border-cream/60 transition-colors">
               <input
                 type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="your@email.com"
-                className="flex-1 bg-transparent px-4 py-3 text-sm placeholder:text-cream/40 text-cream outline-none"
+                className="min-w-0 flex-1 bg-transparent px-4 py-3 text-sm placeholder:text-cream/40 text-cream outline-none"
                 aria-label="Email address"
               />
               <button
                 type="submit"
-                className="px-5 bg-cream text-charcoal text-xs font-bold tracking-widest uppercase hover:bg-cream/80 transition-colors flex items-center gap-2"
+                className="px-5 py-3 sm:py-0 bg-cream text-charcoal text-xs font-bold tracking-widest uppercase hover:bg-cream/80 transition-colors flex items-center justify-center gap-2"
               >
                 {submitted ? 'Subscribed' : 'Subscribe'}
                 {!submitted && <ArrowRight className="w-3.5 h-3.5" />}
@@ -66,9 +67,9 @@ export function Footer() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-10">
           <div className="col-span-2 lg:col-span-2">
-            <a href="/" className="font-serif italic text-4xl font-medium tracking-tight inline-block mb-4">
+            <Link href="/" className="font-serif italic text-4xl font-medium tracking-tight inline-block mb-4">
               Veritas
-            </a>
+            </Link>
             <p className="text-cream/60 text-sm leading-relaxed max-w-sm mb-6">
               The global record — independent journalism for readers who want depth, context, and clarity.
             </p>
@@ -86,12 +87,12 @@ export function Footer() {
             <ul className="space-y-2.5 text-sm">
               {CATEGORIES.map((c) => (
                 <li key={c}>
-                  <a
+                  <Link
                     href={`/category/${c.toLowerCase()}`}
                     className="text-cream/80 hover:text-cream transition-colors capitalize"
                   >
                     {c.toLowerCase()}
-                  </a>
+                  </Link>
                 </li>
               ))}
             </ul>

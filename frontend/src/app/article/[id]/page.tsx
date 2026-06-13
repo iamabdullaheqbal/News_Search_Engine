@@ -95,22 +95,22 @@ export default async function ArticleDetailPage({ params }: { params: Promise<{ 
               {article.category}
             </Link>
 
-            <h1 className="font-serif text-4xl md:text-6xl italic leading-tight mb-6">
+            <h1 className="font-serif text-3xl sm:text-4xl md:text-6xl italic leading-tight mb-6">
               {article.title}
             </h1>
 
             {article.dek && (
-              <p className="font-serif text-xl md:text-2xl text-charcoal-light leading-relaxed mb-8">
+              <p className="font-serif text-lg sm:text-xl md:text-2xl text-charcoal-light leading-relaxed mb-8">
                 {article.dek}
               </p>
             )}
 
-            <div className="flex flex-wrap items-center justify-between gap-4 py-5 border-t border-b border-border mb-10 text-sm">
-              <div className="flex items-center gap-4">
+            <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-4 py-5 border-t border-b border-border mb-10 text-sm">
+              <div className="flex min-w-0 items-center gap-4">
                 <div className="w-10 h-10 rounded-full bg-charcoal text-cream flex items-center justify-center font-serif italic text-lg">
                   {(article.author || article.source).charAt(0)}
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="font-bold">{article.author || article.source}</p>
                   <p className="text-xs text-charcoal-light">
                     {article.published_at
@@ -177,7 +177,7 @@ export default async function ArticleDetailPage({ params }: { params: Promise<{ 
             </div>
 
             {article.author && (
-              <div className="border-t border-b border-border py-8 flex gap-5 items-start">
+              <div className="border-t border-b border-border py-8 flex flex-col sm:flex-row gap-5 items-start">
                 <div className="w-14 h-14 rounded-full bg-charcoal text-cream flex items-center justify-center font-serif italic text-2xl flex-shrink-0">
                   {article.author.charAt(0)}
                 </div>

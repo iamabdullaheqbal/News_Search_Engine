@@ -29,7 +29,6 @@ export function HomeContent() {
 
   useEffect(() => {
     if (authLoading) return; // wait for auth to resolve before fetching
-    setLoading(true);
     getFeed(20)
       .then((data) => {
         setArticles(data);
@@ -48,8 +47,8 @@ export function HomeContent() {
 
   return (
     <div className="flex-1 min-w-0">
-      <div className="flex items-center justify-between border-b border-border pb-4 mb-8">
-        <h1 className="text-sm font-bold tracking-widest uppercase">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-4 mb-8">
+        <h1 className="text-xs sm:text-sm font-bold tracking-widest uppercase">
           For You <span className="text-charcoal-light/50 mx-2">{separator}</span> {personalizedLabel}
         </h1>
         {updatedAt && <span className="text-xs text-charcoal-light">Updated {updatedAt}</span>}
@@ -57,7 +56,7 @@ export function HomeContent() {
 
       {loading ? (
         <div className="space-y-8 animate-pulse">
-          <div className="h-96 bg-cream-dark/40 rounded" />
+          <div className="h-64 sm:h-80 md:h-96 bg-cream-dark/40 rounded" />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {[...Array(4)].map((_, i) => (
               <div key={i} className="h-48 bg-cream-dark/40 rounded" />
