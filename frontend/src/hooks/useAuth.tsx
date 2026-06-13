@@ -26,6 +26,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Check if Google OAuth just completed (backend redirected back with ?auth_success=1)
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('auth_success') === '1') {
+        // Clean up the URL param without a page reload
+        const clean = window.location.pathname + window.location.hash;
+        window.history.replaceState({}, '', clean);
+      }
+      if (params.get('auth_error')) {
+        console.warn('Google OAuth error:', params.get('auth_error'));
+        const clean = window.location.pathname + window.location.hash;
+        window.history.replaceState({}, '', clean);
+      }
+    }
+
     // Try access token first; if expired, attempt silent refresh
     getMe()
       .then(setUser)

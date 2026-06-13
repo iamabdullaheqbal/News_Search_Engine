@@ -1,7 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, Cookie
+from fastapi import APIRouter, Depends, HTTPException, Response, Cookie, Request
+from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import Optional
+import httpx
+import urllib.parse
+
 from app.db.database import get_db
 from app.db.models import User
 from app.schemas.auth import RegisterRequest, LoginRequest, UserOut, TokenResponse
@@ -15,6 +19,10 @@ from app.core.settings import get_settings
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 settings = get_settings()
+
+GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
+GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
 
 
 def _set_auth_cookies(response: Response, user_id: int) -> str:
@@ -138,3 +146,90 @@ async def set_interests(
     from app.services.interest import set_user_interests
     updated = await set_user_interests(user, topics, db)
     return {"interests": updated}
+
+
+# ---------------------------------------------------------------------------
+# Google OAuth
+# ---------------------------------------------------------------------------
+
+@router.get("/google")
+async def google_login():
+    """Redirect the browser to Google's OAuth consent screen."""
+    if not settings.google_client_id:
+        raise HTTPException(status_code=501, detail="Google OAuth not configured")
+    params = urllib.parse.urlencode({
+        "client_id":     settings.google_client_id,
+        "redirect_uri":  settings.google_redirect_uri,
+        "response_type": "code",
+        "scope":         "openid email profile",
+        "access_type":   "offline",
+        "prompt":        "select_account",
+    })
+    return RedirectResponse(f"{GOOGLE_AUTH_URL}?{params}")
+
+
+@router.get("/google/callback")
+async def google_callback(
+    code: Optional[str] = None,
+    error: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Handle the redirect from Google, exchange code for user info, upsert user."""
+    if error or not code:
+        return RedirectResponse(
+            f"{settings.frontend_url}/?auth_error={error or 'missing_code'}"
+        )
+
+    # Exchange authorization code for tokens
+    async with httpx.AsyncClient(timeout=15) as client:
+        token_resp = await client.post(GOOGLE_TOKEN_URL, data={
+            "code":          code,
+            "client_id":     settings.google_client_id,
+            "client_secret": settings.google_client_secret,
+            "redirect_uri":  settings.google_redirect_uri,
+            "grant_type":    "authorization_code",
+        })
+        if not token_resp.is_success:
+            return RedirectResponse(f"{settings.frontend_url}/?auth_error=token_exchange_failed")
+        token_data = token_resp.json()
+
+        # Fetch user profile from Google
+        userinfo_resp = await client.get(
+            GOOGLE_USERINFO_URL,
+            headers={"Authorization": f"Bearer {token_data['access_token']}"},
+        )
+        if not userinfo_resp.is_success:
+            return RedirectResponse(f"{settings.frontend_url}/?auth_error=userinfo_failed")
+        info = userinfo_resp.json()
+
+    google_id = info.get("sub")
+    email = info.get("email")
+    name = info.get("name") or info.get("given_name") or email
+
+    if not google_id or not email:
+        return RedirectResponse(f"{settings.frontend_url}/?auth_error=missing_profile")
+
+    # Upsert: look up by google_id first, then by email
+    result = await db.execute(select(User).where(User.google_id == google_id))
+    user = result.scalar_one_or_none()
+
+    if not user:
+        result = await db.execute(select(User).where(User.email == email))
+        user = result.scalar_one_or_none()
+        if user:
+            # Link existing email account to Google
+            user.google_id = google_id
+            if not user.name:
+                user.name = name
+        else:
+            # Brand new user
+            user = User(email=email, google_id=google_id, name=name)
+            db.add(user)
+
+    await db.commit()
+    await db.refresh(user)
+
+    # Build redirect and attach auth cookies to it
+    redirect = RedirectResponse(f"{settings.frontend_url}/?auth_success=1", status_code=302)
+    _set_auth_cookies(redirect, user.id)
+    return redirect

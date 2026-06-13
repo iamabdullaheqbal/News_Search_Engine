@@ -94,3 +94,9 @@ export const toggleInterest = (topic: string) =>
     method: "POST",
     body: JSON.stringify({ topic }),
   });
+
+// Google OAuth — redirects browser to Google consent screen
+export const getGoogleAuthUrl = () => {
+  const base = typeof window === "undefined" ? BASE : "";
+  return `${base}/api/auth/google`;
+};
