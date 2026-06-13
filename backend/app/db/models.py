@@ -53,6 +53,7 @@ class Article(Base):
     title: Mapped[str] = mapped_column(Text, nullable=False)
     dek: Mapped[str | None] = mapped_column(Text, nullable=True)
     body: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON array as text
+    processed_text: Mapped[str | None] = mapped_column(Text, nullable=True)  # lemmatized for BM25
     category: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     source: Mapped[str] = mapped_column(String(255), nullable=False)
     author: Mapped[str | None] = mapped_column(String(255), nullable=True)
