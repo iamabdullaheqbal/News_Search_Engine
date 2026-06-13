@@ -6,12 +6,16 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { CATEGORIES } from '@/lib/mock';
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut';
+import { useAuth } from '@/hooks/useAuth';
 import { SearchModal } from './SearchModal';
+import { AuthModal } from './AuthModal';
 import { cn } from '@/lib/utils';
 
 export function Header() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
   const pathname = usePathname();
+  const { user, logout } = useAuth();
   useKeyboardShortcut('k', () => setIsSearchOpen(true));
 
   return (
@@ -41,9 +45,26 @@ export function Header() {
             </div>
 
             <div className="flex items-center gap-6 text-sm font-bold tracking-wider uppercase">
-              <button className="hidden sm:block hover:text-charcoal-light transition-colors">
-                Login
-              </button>
+              {user ? (
+                <>
+                  <span className="hidden sm:block text-charcoal-light text-xs">
+                    {user.name || user.email.split('@')[0]}
+                  </span>
+                  <button
+                    onClick={logout}
+                    className="hidden sm:block hover:text-charcoal-light transition-colors"
+                  >
+                    Logout
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => setIsAuthOpen(true)}
+                  className="hidden sm:block hover:text-charcoal-light transition-colors"
+                >
+                  Login
+                </button>
+              )}
               <button className="bg-charcoal text-cream px-6 py-2.5 hover:bg-charcoal-light transition-colors">
                 Subscribe
               </button>
@@ -79,6 +100,7 @@ export function Header() {
       </header>
 
       <SearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
+      <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
     </>
   );
 }

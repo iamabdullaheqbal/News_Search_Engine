@@ -1,25 +1,50 @@
 'use client';
 
-import { ARTICLES, HERO_ARTICLE } from '@/lib/mock';
-import { useFollows } from '@/hooks/useFollows';
+import { useEffect, useState } from 'react';
+import { useAuth } from '@/hooks/useAuth';
+import { getFeed, Article } from '@/lib/api';
 import { ArticleCard } from './ArticleCard';
 
+// Adapter: map API Article to the shape ArticleCard expects
+function toCardArticle(a: Article) {
+  return {
+    id: a.id,
+    title: a.title,
+    dek: a.dek,
+    category: a.category,
+    source: a.source,
+    author: a.author,
+    readTime: a.read_time ?? '',
+    imageUrl: a.image_url ?? '',
+    timestamp: a.timestamp ?? '',
+    publishedAt: a.published_at,
+  };
+}
+
 export function HomeContent() {
-  const { follows, isLoaded } = useFollows();
+  const { user, loading: authLoading } = useAuth();
+  const [articles, setArticles] = useState<Article[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [updatedAt, setUpdatedAt] = useState('');
 
-  const displayArticles =
-    isLoaded && follows.length > 0
-      ? ARTICLES.filter((a) => follows.includes(a.category))
-      : ARTICLES;
+  useEffect(() => {
+    if (authLoading) return; // wait for auth to resolve before fetching
+    setLoading(true);
+    getFeed(20)
+      .then((data) => {
+        setArticles(data);
+        setUpdatedAt(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [authLoading, user]); // refetch when auth state changes
 
-  const displayHero =
-    isLoaded && follows.length > 0 && !follows.includes(HERO_ARTICLE.category)
-      ? displayArticles[0] || HERO_ARTICLE
-      : HERO_ARTICLE;
-
-  const gridArticles = displayArticles.filter((a) => a.id !== displayHero.id);
-  const personalizedLabel = isLoaded && follows.length > 0 ? 'Personalized' : "Editor's Picks";
   const separator = '\u2215\u2215';
+  const isPersonalized = !!(user?.interests?.length);
+  const personalizedLabel = isPersonalized ? 'Personalized' : "Editor's Picks";
+
+  const hero = articles[0];
+  const gridArticles = articles.slice(1);
 
   return (
     <div className="flex-1 min-w-0">
@@ -27,24 +52,38 @@ export function HomeContent() {
         <h1 className="text-sm font-bold tracking-widest uppercase">
           For You <span className="text-charcoal-light/50 mx-2">{separator}</span> {personalizedLabel}
         </h1>
-        <span className="text-xs text-charcoal-light">Updated 2m ago</span>
+        {updatedAt && <span className="text-xs text-charcoal-light">Updated {updatedAt}</span>}
       </div>
 
-      <div className="mb-12">
-        <ArticleCard article={displayHero} featured />
-      </div>
-
-      {gridArticles.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-12">
-          {gridArticles.map((article) => (
-            <ArticleCard key={article.id} article={article} />
-          ))}
+      {loading ? (
+        <div className="space-y-8 animate-pulse">
+          <div className="h-96 bg-cream-dark/40 rounded" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="h-48 bg-cream-dark/40 rounded" />
+            ))}
+          </div>
         </div>
-      ) : (
+      ) : articles.length === 0 ? (
         <div className="py-12 text-center border border-dashed border-border text-charcoal-light">
           <p className="font-serif text-xl mb-2">No recent articles in your followed topics.</p>
           <p className="text-sm">Try following more topics in the sidebar.</p>
         </div>
+      ) : (
+        <>
+          {hero && (
+            <div className="mb-12">
+              <ArticleCard article={toCardArticle(hero)} featured />
+            </div>
+          )}
+          {gridArticles.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-12">
+              {gridArticles.map((article) => (
+                <ArticleCard key={article.id} article={toCardArticle(article)} />
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

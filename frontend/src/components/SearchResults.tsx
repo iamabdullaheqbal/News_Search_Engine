@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState, Fragment } from 'react';
+import { useEffect, useState, Fragment, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Search, X } from 'lucide-react';
 import Link from 'next/link';
-import { ALL_ARTICLES, CATEGORIES, Article } from '@/lib/mock';
+import { CATEGORIES } from '@/lib/mock';
+import { searchArticles, Article } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 type TimeFilter = 'any' | 'today' | 'week' | 'month';
@@ -16,10 +17,34 @@ export function SearchResults() {
   const [query, setQuery] = useState(initialQuery);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('any');
+  const [results, setResults] = useState<Article[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     setQuery(searchParams.get('q') || '');
+    setActiveCategory(null);
   }, [searchParams]);
+
+  const doSearch = useCallback(async (q: string, cat: string | null) => {
+    if (!q.trim()) return;
+    setLoading(true);
+    try {
+      const res = await searchArticles(q, cat ?? undefined, 50);
+      setResults(res.results);
+      setTotal(res.total);
+    } catch {
+      setResults([]);
+      setTotal(0);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (initialQuery) doSearch(initialQuery, activeCategory);
+    else { setResults([]); setTotal(0); }
+  }, [initialQuery, activeCategory, doSearch]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,38 +55,21 @@ export function SearchResults() {
 
   const matchTime = (article: Article): boolean => {
     if (timeFilter === 'any') return true;
-    if (timeFilter === 'today')
-      return article.timestamp.includes('hour') || article.timestamp.includes('minute');
-    if (timeFilter === 'week')
-      return article.timestamp.includes('hour') || article.timestamp.includes('day');
+    const ts = article.timestamp ?? '';
+    if (timeFilter === 'today') return ts.includes('hour') || ts.includes('minute');
+    if (timeFilter === 'week') return ts.includes('hour') || ts.includes('day');
     return true;
   };
 
-  const allMatches = initialQuery
-    ? ALL_ARTICLES.filter((a) => {
-        const q = initialQuery.toLowerCase();
-        return (
-          a.title.toLowerCase().includes(q) ||
-          a.category.toLowerCase().includes(q) ||
-          (a.dek && a.dek.toLowerCase().includes(q)) ||
-          a.source.toLowerCase().includes(q)
-        );
-      })
-    : [];
-
-  const results = allMatches.filter(
-    (a) => (!activeCategory || a.category === activeCategory) && matchTime(a)
-  );
+  const displayed = results.filter(matchTime);
 
   const highlight = (text: string): React.ReactNode => {
     if (!initialQuery) return text;
-    const regex = new RegExp(`(${initialQuery})`, 'gi');
+    const regex = new RegExp(`(${initialQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
     const parts = text.split(regex);
     return parts.map((part, i) =>
       part.toLowerCase() === initialQuery.toLowerCase() ? (
-        <mark key={i} className="bg-yellow-200/60 text-charcoal px-0.5">
-          {part}
-        </mark>
+        <mark key={i} className="bg-yellow-200/60 text-charcoal px-0.5">{part}</mark>
       ) : (
         <Fragment key={i}>{part}</Fragment>
       )
@@ -87,10 +95,7 @@ export function SearchResults() {
           {query && (
             <button
               type="button"
-              onClick={() => {
-                setQuery('');
-                router.push('/search');
-              }}
+              onClick={() => { setQuery(''); router.push('/search'); }}
               className="p-2 hover:bg-border rounded-md text-charcoal-light transition-colors"
             >
               <X className="w-5 h-5" />
@@ -98,9 +103,9 @@ export function SearchResults() {
           )}
         </form>
 
-        {initialQuery && (
+        {initialQuery && !loading && (
           <p className="text-sm text-charcoal-light">
-            {results.length} result{results.length !== 1 ? 's' : ''} for{' '}
+            {displayed.length} result{displayed.length !== 1 ? 's' : ''} for{' '}
             <span className="font-medium text-charcoal">&ldquo;{initialQuery}&rdquo;</span>
           </p>
         )}
@@ -110,76 +115,75 @@ export function SearchResults() {
         <>
           <div className="border-b border-border pb-6 mb-8 space-y-4">
             <div className="flex items-center gap-3 flex-wrap">
-              <span className="text-xxs font-bold tracking-widest uppercase text-charcoal-light mr-2">
-                Section:
-              </span>
+              <span className="text-xxs font-bold tracking-widest uppercase text-charcoal-light mr-2">Section:</span>
               <button
                 onClick={() => setActiveCategory(null)}
                 className={cn(
                   'px-3 py-1 text-xs font-bold tracking-wider uppercase transition-all',
-                  !activeCategory
-                    ? 'bg-charcoal text-cream'
-                    : 'bg-transparent text-charcoal border border-border hover:border-charcoal-light'
+                  !activeCategory ? 'bg-charcoal text-cream' : 'bg-transparent text-charcoal border border-border hover:border-charcoal-light'
                 )}
-              >
-                All
-              </button>
+              >All</button>
               {CATEGORIES.map((c) => (
                 <button
                   key={c}
                   onClick={() => setActiveCategory(activeCategory === c ? null : c)}
                   className={cn(
                     'px-3 py-1 text-xs font-bold tracking-wider uppercase transition-all',
-                    activeCategory === c
-                      ? 'bg-charcoal text-cream'
-                      : 'bg-transparent text-charcoal border border-border hover:border-charcoal-light'
+                    activeCategory === c ? 'bg-charcoal text-cream' : 'bg-transparent text-charcoal border border-border hover:border-charcoal-light'
                   )}
-                >
-                  {c}
-                </button>
+                >{c}</button>
               ))}
             </div>
             <div className="flex items-center gap-3 flex-wrap">
-              <span className="text-xxs font-bold tracking-widest uppercase text-charcoal-light mr-2">
-                Time:
-              </span>
+              <span className="text-xxs font-bold tracking-widest uppercase text-charcoal-light mr-2">Time:</span>
               {(['any', 'today', 'week', 'month'] as TimeFilter[]).map((t) => (
                 <button
                   key={t}
                   onClick={() => setTimeFilter(t)}
                   className={cn(
                     'px-3 py-1 text-xs font-bold tracking-wider uppercase transition-all',
-                    timeFilter === t
-                      ? 'bg-charcoal text-cream'
-                      : 'bg-transparent text-charcoal border border-border hover:border-charcoal-light'
+                    timeFilter === t ? 'bg-charcoal text-cream' : 'bg-transparent text-charcoal border border-border hover:border-charcoal-light'
                   )}
-                >
-                  {t === 'any' ? 'Any time' : `Past ${t}`}
-                </button>
+                >{t === 'any' ? 'Any time' : `Past ${t}`}</button>
               ))}
             </div>
           </div>
 
-          {results.length === 0 ? (
+          {loading ? (
+            <div className="space-y-8 animate-pulse">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="flex gap-6 pb-10 border-b border-border">
+                  <div className="w-64 h-40 bg-cream-dark/40 rounded flex-shrink-0" />
+                  <div className="flex-1 space-y-3">
+                    <div className="h-4 bg-cream-dark/40 rounded w-1/4" />
+                    <div className="h-8 bg-cream-dark/40 rounded" />
+                    <div className="h-4 bg-cream-dark/40 rounded w-3/4" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : displayed.length === 0 ? (
             <div className="py-20 text-center">
               <p className="font-serif italic text-3xl mb-3">No matches found.</p>
               <p className="text-charcoal-light mb-8">Try a broader query or remove some filters.</p>
             </div>
           ) : (
             <div className="space-y-10">
-              {results.map((article) => (
+              {displayed.map((article) => (
                 <Link
                   key={article.id}
                   href={`/article/${article.id}`}
                   className="flex flex-col md:flex-row gap-6 group pb-10 border-b border-border last:border-b-0"
                 >
-                  <div className="md:w-64 flex-shrink-0 overflow-hidden">
-                    <img
-                      src={article.imageUrl}
-                      alt={article.title}
-                      className="w-full h-48 md:h-40 object-cover transform group-hover:scale-105 transition-transform duration-700"
-                    />
-                  </div>
+                  {article.image_url && (
+                    <div className="md:w-64 flex-shrink-0 overflow-hidden">
+                      <img
+                        src={article.image_url}
+                        alt={article.title}
+                        className="w-full h-48 md:h-40 object-cover transform group-hover:scale-105 transition-transform duration-700"
+                      />
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 mb-2">
                       <span className="text-xxs font-bold tracking-wider uppercase bg-charcoal text-cream px-1.5 py-0.5">

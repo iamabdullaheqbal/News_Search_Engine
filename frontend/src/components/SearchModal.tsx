@@ -1,21 +1,26 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { Search, X, Clock, ArrowRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut';
-import { ALL_ARTICLES } from '@/lib/mock';
+import { searchArticles, Article } from '@/lib/api';
 
 interface SearchModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+const RECENT_SEARCHES = ['Interest rates', 'Silicon valley', 'Climate summit'];
+
 export function SearchModal({ isOpen, onClose }: SearchModalProps) {
   const [query, setQuery] = useState('');
+  const [results, setResults] = useState<Article[]>([]);
+  const [searching, setSearching] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useKeyboardShortcut('Escape', onClose, false);
 
@@ -24,20 +29,26 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
       setTimeout(() => inputRef.current?.focus(), 10);
     } else {
       setQuery('');
+      setResults([]);
     }
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  const doSearch = useCallback((q: string) => {
+    if (!q.trim()) { setResults([]); return; }
+    setSearching(true);
+    searchArticles(q, undefined, 5)
+      .then((res) => setResults(res.results))
+      .catch(() => setResults([]))
+      .finally(() => setSearching(false));
+  }, []);
 
-  const results =
-    query.trim() === ''
-      ? []
-      : ALL_ARTICLES.filter(
-          (a) =>
-            a.title.toLowerCase().includes(query.toLowerCase()) ||
-            a.category.toLowerCase().includes(query.toLowerCase()) ||
-            (a.dek && a.dek.toLowerCase().includes(query.toLowerCase()))
-        ).slice(0, 5);
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => doSearch(query), 300);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [query, doSearch]);
+
+  if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,7 +96,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
                 <span className="font-medium tracking-wider text-xs uppercase">Recent Searches</span>
               </div>
               <div className="space-y-1">
-                {['Interest rates', 'Silicon valley', 'Climate summit'].map((term) => (
+                {RECENT_SEARCHES.map((term) => (
                   <button
                     key={term}
                     className="w-full text-left px-3 py-2 rounded-md hover:bg-border/50 transition-colors flex items-center justify-between group"
@@ -97,6 +108,8 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
                 ))}
               </div>
             </div>
+          ) : searching ? (
+            <div className="p-8 text-center text-charcoal-light text-sm">Searching…</div>
           ) : results.length > 0 ? (
             <div className="py-2">
               {results.map((article) => (
@@ -106,11 +119,13 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
                   onClick={onClose}
                   className="w-full text-left px-4 py-3 hover:bg-border/50 transition-colors flex items-start gap-4 group"
                 >
-                  <img
-                    src={article.imageUrl}
-                    alt={article.title}
-                    className="w-16 h-16 object-cover rounded"
-                  />
+                  {article.image_url && (
+                    <img
+                      src={article.image_url}
+                      alt={article.title}
+                      className="w-16 h-16 object-cover rounded"
+                    />
+                  )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-xxs font-bold tracking-wider uppercase bg-charcoal text-cream px-1.5 py-0.5">

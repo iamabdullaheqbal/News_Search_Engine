@@ -4,18 +4,52 @@ import { ArrowLeft, Twitter, Facebook, Link as LinkIcon, Bookmark } from 'lucide
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { ArticleCard } from '@/components/ArticleCard';
-import { ALL_ARTICLES, getArticleById, getRelatedArticles } from '@/lib/mock';
+import type { Article, ArticleDetail } from '@/lib/api';
 
-export function generateStaticParams() {
-  return ALL_ARTICLES.map((a) => ({ id: a.id }));
+const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+
+async function fetchArticle(id: string): Promise<ArticleDetail | null> {
+  try {
+    const res = await fetch(`${BASE}/api/articles/${id}`, { next: { revalidate: 60 } });
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
 }
 
-export default async function ArticleDetail({ params }: { params: Promise<{ id: string }> }) {
+async function fetchRelated(category: string, currentId: string) {
+  try {
+    const res = await fetch(`${BASE}/api/articles/category/${category}?limit=4`, {
+      next: { revalidate: 60 },
+    });
+    if (!res.ok) return [];
+    const articles = await res.json();
+    return articles.filter((a: { id: string }) => a.id !== currentId).slice(0, 3);
+  } catch {
+    return [];
+  }
+}
+
+export default async function ArticleDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const article = getArticleById(id);
+  const article = await fetchArticle(id);
   if (!article) notFound();
 
-  const related = getRelatedArticles(article);
+  const related = await fetchRelated(article.category, article.id);
+
+  const toCardArticle = (a: typeof related[number]) => ({
+    id: a.id,
+    title: a.title,
+    dek: a.dek,
+    category: a.category,
+    source: a.source,
+    author: a.author,
+    readTime: a.read_time ?? '',
+    imageUrl: a.image_url ?? '',
+    timestamp: a.timestamp ?? '',
+    publishedAt: a.published_at,
+  });
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -49,7 +83,11 @@ export default async function ArticleDetail({ params }: { params: Promise<{ id: 
                 <div>
                   <p className="font-bold">{article.author || article.source}</p>
                   <p className="text-xs text-charcoal-light">
-                    {article.publishedAt || article.timestamp} · {article.readTime}
+                    {article.published_at
+                      ? new Date(article.published_at).toLocaleDateString('en-US', {
+                          year: 'numeric', month: 'long', day: 'numeric',
+                        })
+                      : article.timestamp} · {article.read_time}
                   </p>
                 </div>
               </div>
@@ -71,18 +109,20 @@ export default async function ArticleDetail({ params }: { params: Promise<{ id: 
             </div>
           </div>
 
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 mb-12">
-            <figure>
-              <img
-                src={article.imageUrl}
-                alt={article.title}
-                className="w-full h-auto max-h-[600px] object-cover"
-              />
-              <figcaption className="text-xs text-charcoal-light mt-3 italic">
-                Photograph for Veritas
-              </figcaption>
-            </figure>
-          </div>
+          {article.image_url && (
+            <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 mb-12">
+              <figure>
+                <img
+                  src={article.image_url}
+                  alt={article.title}
+                  className="w-full h-auto max-h-[600px] object-cover"
+                />
+                <figcaption className="text-xs text-charcoal-light mt-3 italic">
+                  Photograph for Veritas
+                </figcaption>
+              </figure>
+            </div>
+          )}
 
           <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
             {article.body && article.body.length > 0 && (
@@ -118,8 +158,7 @@ export default async function ArticleDetail({ params }: { params: Promise<{ id: 
                   <h3 className="font-serif text-2xl mb-2">{article.author}</h3>
                   <p className="text-sm text-charcoal-light leading-relaxed">
                     {article.author} is a correspondent for {article.source}, covering{' '}
-                    {article.category.toLowerCase()} and adjacent beats. They have reported from
-                    twelve countries over the past decade.
+                    {article.category.toLowerCase()} and adjacent beats.
                   </p>
                 </div>
               </div>
@@ -134,8 +173,8 @@ export default async function ArticleDetail({ params }: { params: Promise<{ id: 
                 More in {article.category.toLowerCase()}
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-12">
-                {related.map((r) => (
-                  <ArticleCard key={r.id} article={r} />
+                {related.map((r: Article) => (
+                  <ArticleCard key={r.id} article={toCardArticle(r)} />
                 ))}
               </div>
             </div>

@@ -1,10 +1,12 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { Sidebar } from '@/components/Sidebar';
 import { ArticleCard } from '@/components/ArticleCard';
-import { CATEGORIES, getArticlesByCategory } from '@/lib/mock';
+import { CATEGORIES } from '@/lib/mock';
+import { Article } from '@/lib/api';
+
+const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
 const CATEGORY_TAGLINES: Record<string, string> = {
   POLITICS: 'Power, policy, and the people who shape them.',
@@ -16,6 +18,21 @@ const CATEGORY_TAGLINES: Record<string, string> = {
   MARKETS: 'Equities, bonds, currencies — the daily ledger.',
 };
 
+function toCardArticle(a: Article) {
+  return {
+    id: a.id,
+    title: a.title,
+    dek: a.dek,
+    category: a.category,
+    source: a.source,
+    author: a.author,
+    readTime: a.read_time ?? '',
+    imageUrl: a.image_url ?? '',
+    timestamp: a.timestamp ?? '',
+    publishedAt: a.published_at,
+  };
+}
+
 export function generateStaticParams() {
   return CATEGORIES.map((c) => ({ slug: c.toLowerCase() }));
 }
@@ -25,7 +42,16 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
   const category = slug.toUpperCase();
   if (!CATEGORIES.includes(category)) notFound();
 
-  const articles = getArticlesByCategory(category);
+  let articles: Article[] = [];
+  try {
+    const res = await fetch(`${BASE}/api/articles/category/${category}?limit=20`, {
+      next: { revalidate: 60 },
+    });
+    if (res.ok) articles = await res.json();
+  } catch {
+    // fall through to empty state
+  }
+
   const tagline = CATEGORY_TAGLINES[category] || '';
   const featured = articles[0];
   const rest = articles.slice(1);
@@ -53,7 +79,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
               <>
                 {featured && (
                   <div className="mb-12">
-                    <ArticleCard article={featured} featured />
+                    <ArticleCard article={toCardArticle(featured)} featured />
                   </div>
                 )}
                 {rest.length > 0 && (
@@ -63,7 +89,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-12">
                       {rest.map((article) => (
-                        <ArticleCard key={article.id} article={article} />
+                        <ArticleCard key={article.id} article={toCardArticle(article)} />
                       ))}
                     </div>
                   </>

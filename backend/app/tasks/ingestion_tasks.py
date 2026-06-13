@@ -1,0 +1,26 @@
+import asyncio
+import logging
+
+from app.core.celery_app import celery_app
+from app.db.database import AsyncSessionLocal
+from app.services.ingestion_service import ingest_all_categories
+
+logger = logging.getLogger("veritas")
+
+
+async def _run_ingestion(max_results: int = 25) -> list[dict]:
+    async with AsyncSessionLocal() as db:
+        results = await ingest_all_categories(db, max_results=max_results)
+    total_inserted = sum(r["inserted"] for r in results)
+    logger.info(f"Ingestion complete — total inserted: {total_inserted}")
+    return results
+
+
+@celery_app.task(name="app.tasks.ingestion_tasks.run_ingestion_task", bind=True)
+def run_ingestion_task(self, max_results: int = 25) -> list[dict]:
+    """Celery task that runs the async ingestion pipeline synchronously."""
+    try:
+        return asyncio.run(_run_ingestion(max_results))
+    except Exception as exc:
+        logger.error(f"Ingestion task failed: {exc}", exc_info=True)
+        raise self.retry(exc=exc, countdown=60, max_retries=3)
