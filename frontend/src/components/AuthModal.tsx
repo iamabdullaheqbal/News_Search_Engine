@@ -148,12 +148,17 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
             <input
               type="password"
               required
-              minLength={6}
+              minLength={12}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full border border-border bg-transparent px-3 py-2.5 text-sm outline-none focus:border-charcoal transition-colors"
-              placeholder="••••••••"
+              placeholder="••••••••••••"
             />
+            {mode === 'register' && (
+              <p className="text-xxs text-charcoal-light mt-1">
+                At least 12 characters with uppercase, lowercase, and a digit.
+              </p>
+            )}
           </div>
 
           {error && <p className="text-sm text-red-600">{error}</p>}

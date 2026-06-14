@@ -11,3 +11,8 @@ GEMINI.md
 .agents 
 .codex
 .vscode
+
+# Secrets — never commit
+.env
+.env.*
+!.env.example

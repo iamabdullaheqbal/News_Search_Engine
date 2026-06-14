@@ -5,6 +5,7 @@ import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { ArticleCard } from '@/components/ArticleCard';
 import type { Article, ArticleDetail } from '@/lib/api';
+import { sanitizeImageUrl } from '@/lib/sanitize';
 
 const Twitter = (props: React.SVGProps<SVGSVGElement>) => (
   <svg
@@ -67,6 +68,7 @@ export default async function ArticleDetailPage({ params }: { params: Promise<{ 
   if (!article) notFound();
 
   const related = await fetchRelated(article.category, article.id);
+  const heroImage = sanitizeImageUrl(article.image_url);
 
   const toCardArticle = (a: typeof related[number]) => ({
     id: a.id,
@@ -139,11 +141,11 @@ export default async function ArticleDetailPage({ params }: { params: Promise<{ 
             </div>
           </div>
 
-          {article.image_url && (
+          {heroImage && (
             <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 mb-12">
               <figure>
                 <img
-                  src={article.image_url}
+                  src={heroImage}
                   alt={article.title}
                   className="w-full h-auto max-h-[600px] object-cover"
                 />

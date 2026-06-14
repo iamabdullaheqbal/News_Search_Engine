@@ -35,7 +35,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         window.history.replaceState({}, '', clean);
       }
       if (params.get('auth_error')) {
-        console.warn('Google OAuth error:', params.get('auth_error'));
+        const code = params.get('auth_error')!;
+        const messages: Record<string, string> = {
+          account_exists: 'An account with this email already exists. Sign in with your password instead.',
+          invalid_state: 'Sign-in session expired. Please try again.',
+          oauth_failed: 'Google sign-in failed. Please try again.',
+        };
+        console.warn('Google OAuth error:', messages[code] ?? code);
         const clean = window.location.pathname + window.location.hash;
         window.history.replaceState({}, '', clean);
       }

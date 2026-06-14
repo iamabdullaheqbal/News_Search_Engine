@@ -1,14 +1,18 @@
 """Hybrid search: BM25 + semantic (pgvector) + cross-encoder reranking."""
 from __future__ import annotations
+
 import json
 from datetime import datetime, timezone
+
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, text
+
+from app.core.sanitize import sanitize_image_url
 from app.db.models import Article
+from app.schemas.article import ArticleDetail, ArticleOut
 from app.services.bm25 import bm25_index
 from app.services.embedding import embed_query
 from app.services.reranker import rerank
-from app.schemas.article import ArticleOut, ArticleDetail
 
 _BM25_K = 30
 _SEM_K = 30
@@ -40,7 +44,7 @@ def _to_out(article: Article) -> ArticleOut:
         source=article.source,
         author=article.author,
         read_time=article.read_time,
-        image_url=article.image_url,
+        image_url=sanitize_image_url(article.image_url),
         published_at=article.published_at,
         timestamp=_relative_time(article.published_at),
     )
@@ -64,30 +68,27 @@ async def search_articles(
     limit: int = 20,
     offset: int = 0,
 ) -> tuple[int, list[ArticleOut]]:
-    # 1. BM25
     bm25_hits = bm25_index.search(query, top_k=_BM25_K)
     bm25_ids = {aid for aid, _ in bm25_hits}
 
-    # 2. Semantic search via pgvector
-    # Use ::vector cast inline — asyncpg doesn't support CAST(:param AS vector)
     sem_ids: set[str] = set()
     try:
         q_vec = embed_query(query)
-        vec_literal = "[" + ",".join(str(v) for v in q_vec) + "]"
-        sem_sql = text(
-            f"SELECT id FROM articles ORDER BY embedding <=> '{vec_literal}'::vector LIMIT :k"
+        stmt = (
+            select(Article.id)
+            .where(Article.embedding.isnot(None))
+            .order_by(Article.embedding.cosine_distance(q_vec))
+            .limit(_SEM_K)
         )
-        sem_result = await db.execute(sem_sql, {"k": _SEM_K})
+        sem_result = await db.execute(stmt)
         sem_ids = {row[0] for row in sem_result.all()}
     except Exception:
-        pass  # fall back to BM25-only if embedding fails
+        pass
 
-    # 3. Union candidate IDs
     candidate_ids = list(bm25_ids | sem_ids)
     if not candidate_ids:
         return 0, []
 
-    # Fetch candidate articles
     stmt = select(Article).where(Article.id.in_(candidate_ids))
     if category:
         stmt = stmt.where(Article.category == category.upper())
@@ -97,7 +98,6 @@ async def search_articles(
     if not articles:
         return 0, []
 
-    # 4. Rerank with cross-encoder (optional — falls back to BM25 order if unavailable)
     try:
         candidates_for_rerank = [
             (a.id, f"{a.title} {a.dek or ''} {a.category}") for a in articles
@@ -106,11 +106,10 @@ async def search_articles(
         ranked_ids = [aid for aid, _ in ranked]
         id_map = {a.id: a for a in articles}
         ordered = [id_map[aid] for aid in ranked_ids if aid in id_map]
-        # append any articles not in reranked set
         reranked_set = set(ranked_ids)
         ordered += [a for a in articles if a.id not in reranked_set]
     except Exception:
-        ordered = articles  # fall back to unsorted candidates
+        ordered = articles
 
     total = len(ordered)
     page = ordered[offset : offset + limit]

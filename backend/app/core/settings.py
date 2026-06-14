@@ -9,6 +9,9 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    # Environment
+    environment: str = "development"  # "development" | "production"
+
     # Database
     database_url: str
 
@@ -38,9 +41,17 @@ class Settings(BaseSettings):
     newsapi_key: str = ""
     newsapi_url: str = "https://newsapi.org/v2"
 
-    # Celery
+    # Celery / Redis
     celery_broker_url: str = "redis://localhost:6379/0"
     celery_result_backend: str = "redis://localhost:6379/1"
+    redis_url: str = "redis://localhost:6379/2"
+
+    # Admin ingestion endpoint
+    ingest_api_key: str = ""
+
+    @property
+    def is_production(self) -> bool:
+        return self.environment == "production"
 
 
 @lru_cache

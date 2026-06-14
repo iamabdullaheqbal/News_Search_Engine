@@ -31,7 +31,7 @@ export function Sidebar() {
 
   const privacyNote = user
     ? 'Your preferences are synced to your account.'
-    : 'Tap a topic to personalize your feed. Stored in a cookie — nothing leaves the browser.';
+    : 'Tap a topic to personalize your feed. Preferences are stored securely in a cookie.';
 
   return (
     <aside className="w-full lg:w-80 flex-shrink-0 space-y-10 lg:space-y-12">

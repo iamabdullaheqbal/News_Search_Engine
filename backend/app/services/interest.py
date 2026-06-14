@@ -1,7 +1,10 @@
 """Interest tracking: cookie for guests, DB for authenticated users."""
 import json
+
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+
+from app.core.validators import validate_interest_topics, validate_single_interest
 from app.db.models import User, UserInterest
 
 
@@ -13,15 +16,16 @@ async def get_user_interests(user: User, db: AsyncSession) -> list[str]:
 
 
 async def set_user_interests(user: User, topics: list[str], db: AsyncSession) -> list[str]:
+    validated = validate_interest_topics(topics)
     await db.execute(delete(UserInterest).where(UserInterest.user_id == user.id))
-    for topic in topics:
-        db.add(UserInterest(user_id=user.id, topic=topic.upper()))
+    for topic in validated:
+        db.add(UserInterest(user_id=user.id, topic=topic))
     await db.commit()
-    return topics
+    return validated
 
 
 async def toggle_user_interest(user: User, topic: str, db: AsyncSession) -> list[str]:
-    topic = topic.upper()
+    topic = validate_single_interest(topic)
     result = await db.execute(
         select(UserInterest).where(UserInterest.user_id == user.id, UserInterest.topic == topic)
     )
@@ -38,6 +42,9 @@ def parse_cookie_interests(cookie_val: str | None) -> list[str]:
     if not cookie_val:
         return []
     try:
-        return json.loads(cookie_val)
+        parsed = json.loads(cookie_val)
+        if not isinstance(parsed, list):
+            return []
+        return [str(t) for t in parsed]
     except Exception:
         return []

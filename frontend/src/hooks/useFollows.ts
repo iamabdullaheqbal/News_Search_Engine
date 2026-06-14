@@ -1,27 +1,23 @@
-import { useState, useCallback } from 'react';
-
-function getStoredFollows() {
-  if (typeof document === 'undefined') return [];
-  const match = document.cookie.match(new RegExp('(^| )veritas_follows=([^;]+)'));
-  if (!match) return [];
-  try {
-    return JSON.parse(decodeURIComponent(match[2]));
-  } catch (e) {
-    console.error('Failed to parse follows cookie', e);
-    return [];
-  }
-}
+import { useState, useCallback, useEffect } from 'react';
+import { getGuestFollows, setGuestFollows } from '@/lib/api';
 
 export function useFollows() {
-  const [follows, setFollows] = useState<string[]>(getStoredFollows);
-  const isLoaded = true;
+  const [follows, setFollows] = useState<string[]>([]);
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  useEffect(() => {
+    getGuestFollows()
+      .then(({ topics }) => setFollows(topics))
+      .catch(() => setFollows([]))
+      .finally(() => setIsLoaded(true));
+  }, []);
 
   const toggleFollow = useCallback((topic: string) => {
     setFollows((prev) => {
       const newFollows = prev.includes(topic)
         ? prev.filter((t) => t !== topic)
         : [...prev, topic];
-      document.cookie = `veritas_follows=${encodeURIComponent(JSON.stringify(newFollows))}; path=/; max-age=31536000`;
+      setGuestFollows(newFollows).catch(console.error);
       return newFollows;
     });
   }, []);

@@ -95,6 +95,16 @@ export const toggleInterest = (topic: string) =>
     body: JSON.stringify({ topic }),
   });
 
+// Guest follow preferences (HttpOnly cookie managed by backend)
+export const getGuestFollows = () =>
+  apiFetch<{ topics: string[] }>("/api/articles/follows");
+
+export const setGuestFollows = (topics: string[]) =>
+  apiFetch<{ topics: string[] }>("/api/articles/follows", {
+    method: "POST",
+    body: JSON.stringify({ topics }),
+  });
+
 // Google OAuth — redirects browser to Google consent screen
 export const getGoogleAuthUrl = () => {
   const base = typeof window === "undefined" ? BASE : "";

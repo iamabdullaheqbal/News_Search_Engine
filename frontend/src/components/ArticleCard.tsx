@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Article } from '@/lib/mock';
+import { sanitizeImageUrl } from '@/lib/sanitize';
 
 interface ArticleCardProps {
   article: Article;
@@ -7,7 +8,8 @@ interface ArticleCardProps {
 }
 
 export function ArticleCard({ article, featured = false }: ArticleCardProps) {
-  const hasImage = article.imageUrl.trim().length > 0;
+  const imageUrl = sanitizeImageUrl(article.imageUrl);
+  const hasImage = imageUrl.length > 0;
 
   if (featured) {
     return (
@@ -16,7 +18,7 @@ export function ArticleCard({ article, featured = false }: ArticleCardProps) {
           <div className="overflow-hidden mb-4">
             {hasImage ? (
               <img
-                src={article.imageUrl}
+                src={imageUrl}
                 alt={article.title}
                 className="w-full h-64 sm:h-80 md:h-[400px] object-cover transform group-hover:scale-105 transition-transform duration-700 ease-out"
               />
@@ -49,7 +51,7 @@ export function ArticleCard({ article, featured = false }: ArticleCardProps) {
         <div className="overflow-hidden mb-3">
           {hasImage ? (
             <img
-              src={article.imageUrl}
+              src={imageUrl}
               alt={article.title}
               className="w-full h-44 sm:h-48 object-cover transform group-hover:scale-105 transition-transform duration-700 ease-out"
             />
