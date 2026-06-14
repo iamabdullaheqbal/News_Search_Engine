@@ -15,4 +15,4 @@ GEMINI.md
 # Secrets — never commit
 .env
 .env.*
-!.env.example
+.env.example
