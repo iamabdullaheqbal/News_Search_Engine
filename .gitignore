@@ -11,6 +11,11 @@ GEMINI.md
 .agents 
 .codex
 .vscode
+.gemini 
+.github
+.kiro
+.qoder
+QODER.md
 
 # Secrets — never commit
 .env
