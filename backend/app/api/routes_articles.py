@@ -39,6 +39,15 @@ FOLLOWS_COOKIE = "veritas_follows"
 # Public listing endpoints
 # ---------------------------------------------------------------------------
 
+@router.get("/categories", response_model=list[str])
+async def list_categories(db: AsyncSession = Depends(get_db)):
+    """Return all distinct categories present in the articles table, sorted."""
+    result = await db.execute(
+        select(Article.category).distinct().order_by(Article.category)
+    )
+    return [row[0] for row in result.all()]
+
+
 @router.get("/", response_model=list[ArticleOut])
 async def list_articles(
     category: Optional[str] = Query(default=None),
@@ -158,7 +167,7 @@ async def ingest(
         )
     try:
         if category:
-            stats = await ingest_category(db, category.lower(), max_results)
+            stats = await ingest_category(db, category.lower())
             return {"results": [stats]}
         stats = await ingest_all_categories(db, max_results)
         return {"results": stats}

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Menu, Search, X } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { CATEGORIES } from '@/lib/mock';
+import { useCategories } from '@/hooks/useCategories';
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut';
 import { useAuth } from '@/hooks/useAuth';
 import { SearchModal } from './SearchModal';
@@ -17,6 +17,7 @@ export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const categories = useCategories();
   useKeyboardShortcut('k', () => setIsSearchOpen(true));
 
   const closeMenu = () => setIsMenuOpen(false);
@@ -114,7 +115,7 @@ export function Header() {
             >
               For You
             </Link>
-            {CATEGORIES.map((category) => (
+            {categories.map((category) => (
               <Link
                 key={category}
                 href={`/category/${category.toLowerCase()}`}
@@ -145,7 +146,7 @@ export function Header() {
                 >
                   For You
                 </Link>
-                {CATEGORIES.map((category) => (
+                {categories.map((category) => (
                   <Link
                     key={category}
                     href={`/category/${category.toLowerCase()}`}

@@ -3,44 +3,33 @@ import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { Sidebar } from '@/components/Sidebar';
 import { ArticleCard } from '@/components/ArticleCard';
-import { CATEGORIES } from '@/lib/mock';
-import { Article } from '@/lib/api';
+import { CATEGORY_TAGLINES, toCardArticle, Article } from '@/lib/api';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
-const CATEGORY_TAGLINES: Record<string, string> = {
-  POLITICS: 'Power, policy, and the people who shape them.',
-  ECONOMY: 'Capital, labor, and the forces driving global growth.',
-  TECH: 'The companies and ideas redefining how we work and live.',
-  CLIMATE: 'The science, policy, and economics of a changing planet.',
-  CULTURE: 'Art, ideas, and the texture of contemporary life.',
-  SCIENCE: 'Discoveries, breakthroughs, and the frontiers of knowledge.',
-  MARKETS: 'Equities, bonds, currencies — the daily ledger.',
-};
-
-function toCardArticle(a: Article) {
-  return {
-    id: a.id,
-    title: a.title,
-    dek: a.dek,
-    category: a.category,
-    source: a.source,
-    author: a.author,
-    readTime: a.read_time ?? '',
-    imageUrl: a.image_url ?? '',
-    timestamp: a.timestamp ?? '',
-    publishedAt: a.published_at,
-  };
+async function fetchCategories(): Promise<string[]> {
+  try {
+    const res = await fetch(`${BASE}/api/articles/categories`, {
+      next: { revalidate: 3600 },
+    });
+    if (!res.ok) return [];
+    return res.json();
+  } catch {
+    return [];
+  }
 }
 
-export function generateStaticParams() {
-  return CATEGORIES.map((c) => ({ slug: c.toLowerCase() }));
-}
+// Tell Next.js to render category pages dynamically so new DB categories
+// are picked up without a rebuild.
+export const dynamic = 'force-dynamic';
 
 export default async function CategoryPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const category = slug.toUpperCase();
-  if (!CATEGORIES.includes(category)) notFound();
+
+  // Validate against live DB categories
+  const validCategories = await fetchCategories();
+  if (!validCategories.includes(category)) notFound();
 
   let articles: Article[] = [];
   try {
@@ -52,7 +41,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
     // fall through to empty state
   }
 
-  const tagline = CATEGORY_TAGLINES[category] || '';
+  const tagline = CATEGORY_TAGLINES[category] ?? '';
   const featured = articles[0];
   const rest = articles.slice(1);
 
@@ -65,7 +54,9 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
           <h1 className="font-serif text-5xl sm:text-6xl md:text-7xl italic leading-none mb-4">
             {category.charAt(0) + category.slice(1).toLowerCase()}
           </h1>
-          <p className="text-lg text-charcoal-light max-w-2xl">{tagline}</p>
+          {tagline && (
+            <p className="text-lg text-charcoal-light max-w-2xl">{tagline}</p>
+          )}
         </div>
 
         <div className="flex flex-col lg:flex-row gap-12 lg:gap-16">

@@ -22,22 +22,35 @@ def _get_redis() -> redis.Redis:
 
 def store_refresh_token(jti: str, user_id: int) -> None:
     ttl = settings.refresh_token_expire_days * 86400
-    _get_redis().setex(f"refresh:{jti}", ttl, str(user_id))
+    try:
+        _get_redis().setex(f"refresh:{jti}", ttl, str(user_id))
+    except Exception:
+        logger.warning("Redis unavailable — refresh token not stored server-side (login still succeeds)")
 
 
 def consume_refresh_token(jti: str) -> int | None:
     """Atomically validate and revoke a refresh token (rotation). Returns user_id or None."""
-    user_id = _get_redis().getdel(f"refresh:{jti}")
-    return int(user_id) if user_id else None
+    try:
+        user_id = _get_redis().getdel(f"refresh:{jti}")
+        return int(user_id) if user_id else None
+    except Exception:
+        logger.warning("Redis unavailable — cannot validate refresh token server-side")
+        return None
 
 
 def revoke_refresh_token(jti: str) -> None:
-    _get_redis().delete(f"refresh:{jti}")
+    try:
+        _get_redis().delete(f"refresh:{jti}")
+    except Exception:
+        logger.warning("Redis unavailable — refresh token not revoked server-side (cookie still cleared)")
 
 
 def blacklist_access_token(jti: str) -> None:
     ttl = settings.access_token_expire_minutes * 60
-    _get_redis().setex(f"deny:{jti}", ttl, "1")
+    try:
+        _get_redis().setex(f"deny:{jti}", ttl, "1")
+    except Exception:
+        logger.warning("Redis unavailable — access token not blacklisted (expires naturally via JWT TTL)")
 
 
 def is_access_token_blacklisted(jti: str) -> bool:
@@ -46,5 +59,5 @@ def is_access_token_blacklisted(jti: str) -> bool:
     try:
         return _get_redis().exists(f"deny:{jti}") > 0
     except Exception:
-        logger.warning("Redis unavailable for token blacklist check", exc_info=True)
+        logger.warning("Redis unavailable for token blacklist check")
         return False

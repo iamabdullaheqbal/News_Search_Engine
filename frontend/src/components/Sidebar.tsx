@@ -1,15 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { CATEGORIES, LIVE_WIRE } from '@/lib/mock';
-import { getTrending } from '@/lib/api';
+import { LIVE_WIRE, getTrending } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useFollows } from '@/hooks/useFollows';
+import { useCategories } from '@/hooks/useCategories';
 import { cn } from '@/lib/utils';
 
 export function Sidebar() {
   const { user, toggleInterest } = useAuth();
   const { follows: cookieFollows, toggleFollow: toggleCookieFollow } = useFollows();
+  const categories = useCategories();
   const [trending, setTrending] = useState<string[]>([]);
 
   useEffect(() => {
@@ -57,7 +58,7 @@ export function Sidebar() {
         <h3 className="text-xs font-bold tracking-wider uppercase mb-2">Your Follows</h3>
         <p className="text-sm text-charcoal-light mb-6 leading-relaxed">{privacyNote}</p>
         <div className="flex flex-wrap gap-2">
-          {CATEGORIES.map((category) => {
+          {categories.map((category) => {
             const isFollowing = follows.includes(category);
             return (
               <button

@@ -2,24 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { getFeed, Article } from '@/lib/api';
+import { getFeed, toCardArticle, Article } from '@/lib/api';
 import { ArticleCard } from './ArticleCard';
-
-// Adapter: map API Article to the shape ArticleCard expects
-function toCardArticle(a: Article) {
-  return {
-    id: a.id,
-    title: a.title,
-    dek: a.dek,
-    category: a.category,
-    source: a.source,
-    author: a.author,
-    readTime: a.read_time ?? '',
-    imageUrl: a.image_url ?? '',
-    timestamp: a.timestamp ?? '',
-    publishedAt: a.published_at,
-  };
-}
 
 export function HomeContent() {
   const { user, loading: authLoading } = useAuth();

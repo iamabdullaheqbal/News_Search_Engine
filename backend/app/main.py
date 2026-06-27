@@ -9,7 +9,8 @@ from app.api import routes_articles, routes_auth, routes_search
 from app.core.settings import get_settings
 from app.db.database import AsyncSessionLocal, engine
 from app.db.models import Base
-from app.services.ingestion import seed_and_index
+from app.services.ingestion_service import build_bm25_index
+from app.core.validators import refresh_valid_topics
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("veritas")
@@ -26,9 +27,10 @@ async def lifespan(app: FastAPI):
 
     try:
         async with AsyncSessionLocal() as db:
-            await seed_and_index(db)
+            await build_bm25_index(db)
+            await refresh_valid_topics(db)
     except Exception as e:
-        logger.error(f"Startup seed/index failed: {e}", exc_info=True)
+        logger.error(f"Startup BM25 index build failed: {e}", exc_info=True)
 
     yield
 

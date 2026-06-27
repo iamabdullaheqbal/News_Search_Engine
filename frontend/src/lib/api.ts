@@ -1,5 +1,64 @@
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
+// ── Shared UI types ────────────────────────────────────────────────────────
+
+/** Shape used by ArticleCard (camelCase for UI convenience). */
+export interface CardArticle {
+  id: string;
+  title: string;
+  dek?: string;
+  category: string;
+  source: string;
+  author?: string;
+  readTime: string;
+  imageUrl: string;
+  timestamp: string;
+  publishedAt?: string;
+  body?: string[];
+}
+
+/** Convert an API Article → CardArticle for use in ArticleCard. */
+export function toCardArticle(a: Article): CardArticle {
+  return {
+    id: a.id,
+    title: a.title,
+    dek: a.dek,
+    category: a.category,
+    source: a.source,
+    author: a.author,
+    readTime: a.read_time ?? "",
+    imageUrl: a.image_url ?? "",
+    timestamp: a.timestamp ?? "",
+    publishedAt: a.published_at,
+  };
+}
+
+// ── Category constants ─────────────────────────────────────────────────────
+
+export const CATEGORY_TAGLINES: Record<string, string> = {
+  POLITICS: "Power, policy, and the people who shape them.",
+  ECONOMY: "Capital, labor, and the forces driving global growth.",
+  TECH: "The companies and ideas redefining how we work and live.",
+  CLIMATE: "The science, policy, and economics of a changing planet.",
+  CULTURE: "Art, ideas, and the texture of contemporary life.",
+  SCIENCE: "Discoveries, breakthroughs, and the frontiers of knowledge.",
+  MARKETS: "Equities, bonds, currencies — the daily ledger.",
+  SPORTS: "Games, athletes, and the business of competition.",
+  HEALTH: "Medicine, wellness, and the science of living better.",
+};
+
+// ── Static UI copy (live wire ticker) ─────────────────────────────────────
+
+export const LIVE_WIRE = [
+  { time: "12:45", text: "FTSE 100 recovers early morning losses, closes up 0.2%." },
+  { time: "12:12", text: "Prime Minister arrives in Brussels for emergency trade summit." },
+  { time: "11:58", text: "SpaceX confirms successful landing of Heavy booster core." },
+  { time: "11:30", text: "EU council greenlights AI transparency directive in plenary vote." },
+  { time: "10:15", text: "Oil prices stabilize after brief spike amid supply concerns." },
+];
+
+// ── API types ──────────────────────────────────────────────────────────────
+
 export interface Article {
   id: string;
   title: string;
@@ -48,6 +107,9 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 // Articles
+export const getCategories = () =>
+  apiFetch<string[]>("/api/articles/categories");
+
 export const getFeed = (limit = 20) =>
   apiFetch<Article[]>(`/api/articles/feed?limit=${limit}`);
 

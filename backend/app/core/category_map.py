@@ -4,20 +4,20 @@ from __future__ import annotations
 
 FRONTEND_CATEGORIES = [
     "for-you", "politics", "economy", "tech",
-    "climate", "culture", "science", "markets",
+    "climate", "culture", "science", "markets", "health", "sports",
 ]
 
-# Ingestion category → frontend category
+# Ingestion category → frontend category (uppercase, stored in DB)
 CATEGORY_MAPPING: dict[str, str] = {
-    "general":       "politics",
-    "world":         "politics",
-    "nation":        "politics",
-    "business":      "economy",
-    "technology":    "tech",
-    "entertainment": "culture",
-    "sports":        "culture",
-    "science":       "science",
-    "health":        "science",
+    "general":       "POLITICS",
+    "world":         "POLITICS",
+    "nation":        "POLITICS",
+    "business":      "ECONOMY",
+    "technology":    "TECH",
+    "entertainment": "CULTURE",
+    "sports":        "SPORTS",
+    "science":       "SCIENCE",
+    "health":        "HEALTH",
 }
 
 CLIMATE_KEYWORDS = [
@@ -37,11 +37,10 @@ MARKETS_KEYWORDS = [
 
 
 def assign_frontend_category(article_dict: dict) -> str:
-    """Determine the frontend category for an article dict.
+    """Determine the stored (uppercase) frontend category for an article dict.
     Checks title+dek+body against climate/markets keyword lists first,
     then falls back to the CATEGORY_MAPPING lookup.
     """
-    # Build a single searchable text blob
     text = " ".join(filter(None, [
         article_dict.get("title", ""),
         article_dict.get("dek", ""),
@@ -56,7 +55,5 @@ def assign_frontend_category(article_dict: dict) -> str:
         if kw in text:
             return "MARKETS"
 
-    # Fall back to structural mapping
     raw_cat = article_dict.get("category", "").lower()
-    mapped = CATEGORY_MAPPING.get(raw_cat, "politics")
-    return mapped.upper()
+    return CATEGORY_MAPPING.get(raw_cat, "POLITICS")

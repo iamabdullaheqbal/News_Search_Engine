@@ -5,6 +5,7 @@ import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { ArticleCard } from '@/components/ArticleCard';
 import type { Article, ArticleDetail } from '@/lib/api';
+import { toCardArticle } from '@/lib/api';
 import { sanitizeImageUrl } from '@/lib/sanitize';
 
 const Twitter = (props: React.SVGProps<SVGSVGElement>) => (
@@ -69,19 +70,6 @@ export default async function ArticleDetailPage({ params }: { params: Promise<{ 
 
   const related = await fetchRelated(article.category, article.id);
   const heroImage = sanitizeImageUrl(article.image_url);
-
-  const toCardArticle = (a: typeof related[number]) => ({
-    id: a.id,
-    title: a.title,
-    dek: a.dek,
-    category: a.category,
-    source: a.source,
-    author: a.author,
-    readTime: a.read_time ?? '',
-    imageUrl: a.image_url ?? '',
-    timestamp: a.timestamp ?? '',
-    publishedAt: a.published_at,
-  });
 
   return (
     <div className="min-h-screen flex flex-col">

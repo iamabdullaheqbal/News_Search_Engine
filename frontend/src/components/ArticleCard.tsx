@@ -1,9 +1,9 @@
 import Link from 'next/link';
-import { Article } from '@/lib/mock';
+import { CardArticle } from '@/lib/api';
 import { sanitizeImageUrl } from '@/lib/sanitize';
 
 interface ArticleCardProps {
-  article: Article;
+  article: CardArticle;
   featured?: boolean;
 }
 

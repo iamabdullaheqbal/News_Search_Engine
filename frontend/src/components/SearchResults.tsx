@@ -4,7 +4,7 @@ import { useEffect, useState, Fragment, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Search, X } from 'lucide-react';
 import Link from 'next/link';
-import { CATEGORIES } from '@/lib/mock';
+import { useCategories } from '@/hooks/useCategories';
 import { searchArticles, Article } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
@@ -13,6 +13,7 @@ type TimeFilter = 'any' | 'today' | 'week' | 'month';
 export function SearchResults() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const categories = useCategories();
   const initialQuery = searchParams.get('q') || '';
   const [query, setQuery] = useState(initialQuery);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
@@ -128,7 +129,7 @@ export function SearchResults() {
                   !activeCategory ? 'bg-charcoal text-cream' : 'bg-transparent text-charcoal border border-border hover:border-charcoal-light'
                 )}
               >All</button>
-              {CATEGORIES.map((c) => (
+              {categories.map((c) => (
                 <button
                   key={c}
                   onClick={() => setActiveCategory(activeCategory === c ? null : c)}
