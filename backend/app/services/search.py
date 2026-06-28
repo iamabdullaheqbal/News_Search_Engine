@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, timezone
 
 from sqlalchemy import select
@@ -13,6 +14,8 @@ from app.schemas.article import ArticleDetail, ArticleOut
 from app.services.bm25 import bm25_index
 from app.services.embedding import embed_query
 from app.services.reranker import rerank
+
+logger = logging.getLogger("veritas")
 
 _BM25_K = 30
 _SEM_K = 30
@@ -82,8 +85,8 @@ async def search_articles(
         )
         sem_result = await db.execute(stmt)
         sem_ids = {row[0] for row in sem_result.all()}
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Semantic search unavailable, falling back to BM25 only: {e}")
 
     candidate_ids = list(bm25_ids | sem_ids)
     if not candidate_ids:
@@ -108,8 +111,10 @@ async def search_articles(
         ordered = [id_map[aid] for aid in ranked_ids if aid in id_map]
         reranked_set = set(ranked_ids)
         ordered += [a for a in articles if a.id not in reranked_set]
-    except Exception:
-        ordered = articles
+    except Exception as e:
+        logger.warning(f"Reranker unavailable, falling back to BM25 ordering: {e}")
+        bm25_score_map = {aid: score for aid, score in bm25_hits}
+        ordered = sorted(articles, key=lambda a: bm25_score_map.get(a.id, 0.0), reverse=True)
 
     total = len(ordered)
     page = ordered[offset : offset + limit]

@@ -1,5 +1,7 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
+from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,6 +19,23 @@ logger = logging.getLogger("veritas")
 settings = get_settings()
 
 
+def _warm_models() -> None:
+    """Load both ML models into memory. Runs in a thread pool to avoid blocking the event loop."""
+    try:
+        from app.services.embedding import get_embedding_model
+        get_embedding_model()
+        logger.info("Embedding model warmed up.")
+    except Exception as e:
+        logger.error(f"Failed to warm embedding model: {e}", exc_info=True)
+
+    try:
+        from app.services.reranker import get_reranker
+        get_reranker()
+        logger.info("Cross-encoder reranker warmed up.")
+    except Exception as e:
+        logger.error(f"Failed to warm reranker: {e}", exc_info=True)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
@@ -30,7 +49,15 @@ async def lifespan(app: FastAPI):
             await build_bm25_index(db)
             await refresh_valid_topics(db)
     except Exception as e:
-        logger.error(f"Startup BM25 index build failed: {e}", exc_info=True)
+        logger.error(f"Startup index/validator build failed: {e}", exc_info=True)
+
+    # Warm ML models in a thread so the event loop stays responsive.
+    # First search requests will work correctly as soon as this completes.
+    logger.info("Warming ML models (embedding + reranker) in background...")
+    loop = asyncio.get_event_loop()
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        await loop.run_in_executor(pool, _warm_models)
+    logger.info("ML models ready. Application startup complete.")
 
     yield
 
