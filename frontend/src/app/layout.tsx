@@ -4,7 +4,10 @@ import { AuthProvider } from '@/hooks/useAuth';
 import { CategoriesProvider } from '@/hooks/useCategories';
 
 export const metadata: Metadata = {
-  title: 'Veritas — The Global Record',
+  title: {
+    default: 'Veritas — The Global Record',
+    template: '%s | Veritas',
+  },
   description: 'Independent journalism for readers who want depth, context, and clarity.',
 };
 

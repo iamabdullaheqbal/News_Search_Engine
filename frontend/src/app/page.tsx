@@ -1,7 +1,13 @@
+import type { Metadata } from 'next';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { Sidebar } from '@/components/Sidebar';
 import { HomeContent } from '@/components/HomeContent';
+
+export const metadata: Metadata = {
+  title: 'Veritas — The Global Record',
+  description: 'Independent journalism for readers who want depth, context, and clarity.',
+};
 
 export default function Home() {
   return (

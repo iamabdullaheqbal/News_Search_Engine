@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import type { Metadata } from 'next';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { Sidebar } from '@/components/Sidebar';
@@ -22,6 +23,19 @@ async function fetchCategories(): Promise<string[]> {
 // Tell Next.js to render category pages dynamically so new DB categories
 // are picked up without a rebuild.
 export const dynamic = 'force-dynamic';
+
+export async function generateMetadata(
+  { params }: { params: Promise<{ slug: string }> }
+): Promise<Metadata> {
+  const { slug } = await params;
+  const category = slug.toUpperCase();
+  const label = category.charAt(0) + category.slice(1).toLowerCase();
+  const tagline = CATEGORY_TAGLINES[category] ?? '';
+  return {
+    title: label,
+    description: tagline || `Latest ${label} news on Veritas.`,
+  };
+}
 
 export default async function CategoryPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;

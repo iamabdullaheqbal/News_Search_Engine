@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, Link as LinkIcon, Bookmark } from 'lucide-react';
+import type { Metadata } from 'next';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { ArticleCard } from '@/components/ArticleCard';
@@ -60,6 +61,24 @@ async function fetchRelated(articleId: string): Promise<Article[]> {
   } catch {
     return [];
   }
+}
+
+export async function generateMetadata(
+  { params }: { params: Promise<{ id: string }> }
+): Promise<Metadata> {
+  const { id } = await params;
+  const article = await fetchArticle(id);
+  if (!article) return { title: 'Article Not Found' };
+  return {
+    title: article.title,
+    description: article.dek ?? undefined,
+    openGraph: {
+      title: article.title,
+      description: article.dek ?? undefined,
+      images: article.image_url ? [{ url: article.image_url }] : [],
+      type: 'article',
+    },
+  };
 }
 
 export default async function ArticleDetailPage({ params }: { params: Promise<{ id: string }> }) {
