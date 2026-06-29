@@ -50,14 +50,13 @@ async function fetchArticle(id: string): Promise<ArticleDetail | null> {
   }
 }
 
-async function fetchRelated(category: string, currentId: string) {
+async function fetchRelated(articleId: string): Promise<Article[]> {
   try {
-    const res = await fetch(`${BASE}/api/articles/category/${category}?limit=4`, {
+    const res = await fetch(`${BASE}/api/articles/${articleId}/related?limit=6`, {
       next: { revalidate: 60 },
     });
     if (!res.ok) return [];
-    const articles = await res.json();
-    return articles.filter((a: { id: string }) => a.id !== currentId).slice(0, 3);
+    return res.json();
   } catch {
     return [];
   }
@@ -68,7 +67,7 @@ export default async function ArticleDetailPage({ params }: { params: Promise<{ 
   const article = await fetchArticle(id);
   if (!article) notFound();
 
-  const related = await fetchRelated(article.category, article.id);
+  const related = await fetchRelated(article.id);
   const heroImage = sanitizeImageUrl(article.image_url);
 
   return (
@@ -190,9 +189,9 @@ export default async function ArticleDetailPage({ params }: { params: Promise<{ 
           <section className="bg-cream-dark/40 border-t border-border py-16">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <h2 className="text-xs font-bold tracking-widest uppercase border-b border-charcoal pb-3 mb-8">
-                More in {article.category.toLowerCase()}
+                Related Stories
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-12">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-12">
                 {related.map((r: Article) => (
                   <ArticleCard key={r.id} article={toCardArticle(r)} />
                 ))}

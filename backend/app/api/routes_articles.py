@@ -26,6 +26,7 @@ from app.services.search import (
     get_articles_by_category,
     get_feed_articles,
     get_trending_titles,
+    search_articles,
 )
 
 logger = logging.getLogger("veritas")
@@ -133,6 +134,31 @@ async def set_follows(body: FollowsRequest, response: Response):
         path="/",
     )
     return {"topics": topics}
+
+
+@router.get("/{article_id}/related", response_model=list[ArticleOut])
+async def related_articles(
+    article_id: str,
+    limit: int = Query(default=6, ge=1, le=20),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return articles semantically related to the given article using hybrid search."""
+    try:
+        article = await get_article_by_id(article_id, db)
+        if not article:
+            raise HTTPException(status_code=404, detail="Article not found")
+
+        query_text = f"{article.title} {article.dek or ''}".strip()
+
+        # Fetch one extra so we can exclude the article itself after filtering
+        _, candidates = await search_articles(query_text, db, limit=limit + 1)
+
+        return [a for a in candidates if a.id != article_id][:limit]
+    except HTTPException:
+        raise
+    except Exception:
+        logger.error(f"Related articles error for {article_id}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch related articles")
 
 
 @router.get("/{article_id}", response_model=ArticleDetail)
