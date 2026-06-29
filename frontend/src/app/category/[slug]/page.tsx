@@ -4,9 +4,11 @@ import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { Sidebar } from '@/components/Sidebar';
 import { ArticleCard } from '@/components/ArticleCard';
-import { CATEGORY_TAGLINES, toCardArticle, Article } from '@/lib/api';
+import { LoadMoreArticles } from '@/components/LoadMoreArticles';
+import { CATEGORY_TAGLINES, toCardArticle, Article, CategoryResponse } from '@/lib/api';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+const PAGE_SIZE = 20;
 
 async function fetchCategories(): Promise<string[]> {
   try {
@@ -20,8 +22,19 @@ async function fetchCategories(): Promise<string[]> {
   }
 }
 
-// Tell Next.js to render category pages dynamically so new DB categories
-// are picked up without a rebuild.
+async function fetchCategoryPage(category: string, offset = 0): Promise<CategoryResponse> {
+  try {
+    const res = await fetch(
+      `${BASE}/api/articles/category/${category}?limit=${PAGE_SIZE}&offset=${offset}`,
+      { next: { revalidate: 60 } }
+    );
+    if (!res.ok) return { total: 0, articles: [], limit: PAGE_SIZE, offset };
+    return res.json();
+  } catch {
+    return { total: 0, articles: [], limit: PAGE_SIZE, offset };
+  }
+}
+
 export const dynamic = 'force-dynamic';
 
 export async function generateMetadata(
@@ -41,22 +54,13 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
   const { slug } = await params;
   const category = slug.toUpperCase();
 
-  // Validate against live DB categories
   const validCategories = await fetchCategories();
   if (!validCategories.includes(category)) notFound();
 
-  let articles: Article[] = [];
-  try {
-    const res = await fetch(`${BASE}/api/articles/category/${category}?limit=20`, {
-      next: { revalidate: 60 },
-    });
-    if (res.ok) articles = await res.json();
-  } catch {
-    // fall through to empty state
-  }
+  const { articles, total } = await fetchCategoryPage(category);
 
   const tagline = CATEGORY_TAGLINES[category] ?? '';
-  const featured = articles[0];
+  const featured = articles[0] as Article | undefined;
   const rest = articles.slice(1);
 
   return (
@@ -71,6 +75,9 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
           {tagline && (
             <p className="text-lg text-charcoal-light max-w-2xl">{tagline}</p>
           )}
+          <p className="text-xs text-charcoal-light mt-3">
+            {total.toLocaleString()} {total === 1 ? 'story' : 'stories'}
+          </p>
         </div>
 
         <div className="flex flex-col lg:flex-row gap-12 lg:gap-16">
@@ -92,11 +99,13 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
                     <h2 className="text-xs font-bold tracking-widest uppercase border-b border-border pb-3 mb-8">
                       More in {category.toLowerCase()}
                     </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-12">
-                      {rest.map((article) => (
-                        <ArticleCard key={article.id} article={toCardArticle(article)} />
-                      ))}
-                    </div>
+                    {/* LoadMoreArticles is a client component that handles pagination */}
+                    <LoadMoreArticles
+                      category={category}
+                      initialArticles={rest}
+                      total={total}
+                      pageSize={PAGE_SIZE}
+                    />
                   </>
                 )}
               </>

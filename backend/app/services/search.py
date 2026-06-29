@@ -5,7 +5,7 @@ import json
 import logging
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.sanitize import sanitize_image_url
@@ -124,16 +124,25 @@ async def search_articles(
 async def get_articles_by_category(
     category: str, db: AsyncSession, limit: int = 20, offset: int = 0
 ) -> tuple[int, list[ArticleOut]]:
+    # Count total matching articles
+    count_stmt = (
+        select(func.count())
+        .select_from(Article)
+        .where(Article.category == category.upper())
+    )
+    total = (await db.execute(count_stmt)).scalar_one()
+
+    # Fetch only the requested page via SQL LIMIT/OFFSET
     stmt = (
         select(Article)
         .where(Article.category == category.upper())
         .order_by(Article.published_at.desc())
+        .limit(limit)
+        .offset(offset)
     )
     result = await db.execute(stmt)
     articles = result.scalars().all()
-    total = len(articles)
-    page = articles[offset : offset + limit]
-    return total, [_to_out(a) for a in page]
+    return total, [_to_out(a) for a in articles]
 
 
 async def get_article_by_id(article_id: str, db: AsyncSession) -> ArticleDetail | None:
@@ -148,13 +157,71 @@ async def get_feed_articles(
     topics: list[str],
     db: AsyncSession,
     limit: int = 20,
-) -> list[ArticleOut]:
-    stmt = select(Article).order_by(Article.published_at.desc())
+    offset: int = 0,
+) -> tuple[int, list[ArticleOut]]:
+    """
+    Fetch personalized feed with recency-weighted diversity.
+
+    Ranking approach:
+      - Score = recency_score * diversity_boost
+      - recency_score: exponential decay, half-life 24h → recent articles score near 1.0
+      - diversity_boost: penalises same-category back-to-back runs to spread topics
+    """
+    from datetime import datetime, timezone
+    import math
+
+    base_stmt = select(Article)
     if topics:
-        stmt = stmt.where(Article.category.in_([t.upper() for t in topics]))
-    stmt = stmt.limit(limit)
+        base_stmt = base_stmt.where(Article.category.in_([t.upper() for t in topics]))
+
+    # Fetch a larger candidate pool (5× limit) so ranking has something to work with
+    pool_size = max(limit * 5, 100)
+    stmt = base_stmt.order_by(Article.published_at.desc()).limit(pool_size)
     result = await db.execute(stmt)
-    return [_to_out(a) for a in result.scalars().all()]
+    candidates = list(result.scalars().all())
+
+    if not candidates:
+        return 0, []
+
+    now = datetime.now(timezone.utc)
+    half_life_hours = 24.0
+
+    def recency_score(article: Article) -> float:
+        if article.published_at is None:
+            return 0.0
+        pub = article.published_at
+        if pub.tzinfo is None:
+            pub = pub.replace(tzinfo=timezone.utc)
+        age_hours = max(0.0, (now - pub).total_seconds() / 3600)
+        return math.exp(-age_hours * math.log(2) / half_life_hours)
+
+    # Sort by recency score descending
+    scored = sorted(candidates, key=recency_score, reverse=True)
+
+    # Diversity pass — limit consecutive same-category articles to 2
+    diversified: list[Article] = []
+    category_run: dict[str, int] = {}
+    deferred: list[Article] = []
+
+    for article in scored:
+        cat = article.category
+        run = category_run.get(cat, 0)
+        if run < 2:
+            diversified.append(article)
+            category_run[cat] = run + 1
+            # Reset other category counters to allow them again
+            for k in list(category_run):
+                if k != cat:
+                    category_run[k] = max(0, category_run[k] - 1)
+        else:
+            deferred.append(article)
+
+    # Append deferred articles at the end so nothing is lost
+    diversified.extend(deferred)
+
+    total = len(diversified)
+    page = diversified[offset: offset + limit]
+    return total, [_to_out(a) for a in page]
 
 
 async def get_trending_titles(db: AsyncSession, limit: int = 5) -> list[str]:

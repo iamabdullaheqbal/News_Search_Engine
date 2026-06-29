@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, Fragment, useCallback } from 'react';
+import { useEffect, useState, Fragment, useCallback, useTransition } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Search, X } from 'lucide-react';
 import Link from 'next/link';
@@ -10,47 +10,88 @@ import { cn } from '@/lib/utils';
 
 type TimeFilter = 'any' | 'today' | 'week' | 'month';
 
+const PAGE_SIZE = 20;
+const RECENT_KEY = 'veritas_recent_searches';
+const MAX_RECENT = 8;
+
+function getRecentSearches(): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    return JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]');
+  } catch {
+    return [];
+  }
+}
+
+function addRecentSearch(q: string) {
+  if (typeof window === 'undefined') return;
+  try {
+    const existing = getRecentSearches().filter((s) => s !== q);
+    localStorage.setItem(RECENT_KEY, JSON.stringify([q, ...existing].slice(0, MAX_RECENT)));
+  } catch {
+    // ignore storage errors
+  }
+}
+
 export function SearchResults() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const categories = useCategories();
+
   const initialQuery = searchParams.get('q') || '';
   const [query, setQuery] = useState(initialQuery);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('any');
+
   const [results, setResults] = useState<Article[]>([]);
   const [total, setTotal] = useState(0);
+  const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [isPending, startTransition] = useTransition();
 
+  // Reset when query or filters change
   useEffect(() => {
     const nextQuery = searchParams.get('q') || '';
-    queueMicrotask(() => {
-      setQuery(nextQuery);
-      setActiveCategory(null);
-    });
+    setQuery(nextQuery);
+    setActiveCategory(null);
+    setOffset(0);
+    setResults([]);
+    setTotal(0);
   }, [searchParams]);
 
-  const doSearch = useCallback(async (q: string, cat: string | null) => {
+  const doSearch = useCallback(async (
+    q: string,
+    cat: string | null,
+    off: number,
+    append: boolean,
+  ) => {
     if (!q.trim()) return;
     setLoading(true);
     try {
-      const res = await searchArticles(q, cat ?? undefined, 50);
-      setResults(res.results);
+      const res = await searchArticles(q, cat ?? undefined, PAGE_SIZE, off);
       setTotal(res.total);
+      setResults((prev) => append ? [...prev, ...res.results] : res.results);
+      if (!append) addRecentSearch(q.trim());
     } catch {
-      setResults([]);
-      setTotal(0);
+      if (!append) { setResults([]); setTotal(0); }
     } finally {
       setLoading(false);
     }
   }, []);
 
+  // Initial search whenever query or category filter changes
   useEffect(() => {
-    queueMicrotask(() => {
-      if (initialQuery) doSearch(initialQuery, activeCategory);
-      else { setResults([]); setTotal(0); }
-    });
+    if (initialQuery) doSearch(initialQuery, activeCategory, 0, false);
+    else { setResults([]); setTotal(0); }
   }, [initialQuery, activeCategory, doSearch]);
+
+  const loadMore = () => {
+    const nextOffset = offset + PAGE_SIZE;
+    setOffset(nextOffset);
+    startTransition(() => {
+      doSearch(initialQuery, activeCategory, nextOffset, true);
+    });
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,6 +109,7 @@ export function SearchResults() {
   };
 
   const displayed = results.filter(matchTime);
+  const hasMore = results.length < total;
 
   const highlight = (text: string): React.ReactNode => {
     if (!initialQuery) return text;
@@ -111,7 +153,7 @@ export function SearchResults() {
 
         {initialQuery && !loading && (
           <p className="text-sm text-charcoal-light">
-            {displayed.length} result{displayed.length !== 1 ? 's' : ''} for{' '}
+            {total} result{total !== 1 ? 's' : ''} for{' '}
             <span className="font-medium text-charcoal">&ldquo;{initialQuery}&rdquo;</span>
           </p>
         )}
@@ -155,7 +197,7 @@ export function SearchResults() {
             </div>
           </div>
 
-          {loading ? (
+          {loading && results.length === 0 ? (
             <div className="space-y-8 animate-pulse">
               {[...Array(3)].map((_, i) => (
                 <div key={i} className="flex flex-col sm:flex-row gap-6 pb-10 border-b border-border">
@@ -174,41 +216,55 @@ export function SearchResults() {
               <p className="text-charcoal-light mb-8">Try a broader query or remove some filters.</p>
             </div>
           ) : (
-            <div className="space-y-10">
-              {displayed.map((article) => (
-                <Link
-                  key={article.id}
-                  href={`/article/${article.id}`}
-                  className="flex flex-col md:flex-row gap-6 group pb-10 border-b border-border last:border-b-0"
-                >
-                  {article.image_url && (
-                    <div className="md:w-64 flex-shrink-0 overflow-hidden">
-                      <img
-                        src={article.image_url}
-                        alt={article.title}
-                        className="w-full h-48 md:h-40 object-cover transform group-hover:scale-105 transition-transform duration-700"
-                      />
-                    </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
-                      <span className="text-xxs font-bold tracking-wider uppercase bg-charcoal text-cream px-1.5 py-0.5">
-                        {article.category}
-                      </span>
-                      <span className="text-xs text-charcoal-light">
-                        {article.source} · {article.timestamp}
-                      </span>
-                    </div>
-                    <h2 className="font-serif text-2xl md:text-3xl leading-tight mb-2 group-hover:text-charcoal-light transition-colors">
-                      {highlight(article.title)}
-                    </h2>
-                    {article.dek && (
-                      <p className="text-charcoal-light leading-relaxed">{highlight(article.dek)}</p>
+            <>
+              <div className="space-y-10">
+                {displayed.map((article) => (
+                  <Link
+                    key={article.id}
+                    href={`/article/${article.id}`}
+                    className="flex flex-col md:flex-row gap-6 group pb-10 border-b border-border last:border-b-0"
+                  >
+                    {article.image_url && (
+                      <div className="md:w-64 flex-shrink-0 overflow-hidden">
+                        <img
+                          src={article.image_url}
+                          alt={article.title}
+                          className="w-full h-48 md:h-40 object-cover transform group-hover:scale-105 transition-transform duration-700"
+                        />
+                      </div>
                     )}
-                  </div>
-                </Link>
-              ))}
-            </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
+                        <span className="text-xxs font-bold tracking-wider uppercase bg-charcoal text-cream px-1.5 py-0.5">
+                          {article.category}
+                        </span>
+                        <span className="text-xs text-charcoal-light">
+                          {article.source} · {article.timestamp}
+                        </span>
+                      </div>
+                      <h2 className="font-serif text-2xl md:text-3xl leading-tight mb-2 group-hover:text-charcoal-light transition-colors">
+                        {highlight(article.title)}
+                      </h2>
+                      {article.dek && (
+                        <p className="text-charcoal-light leading-relaxed">{highlight(article.dek)}</p>
+                      )}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+
+              {hasMore && timeFilter === 'any' && (
+                <div className="flex justify-center mt-12">
+                  <button
+                    onClick={loadMore}
+                    disabled={isPending || loading}
+                    className="px-8 py-3 border border-charcoal text-xs font-bold tracking-widest uppercase hover:bg-charcoal hover:text-cream transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isPending ? 'Loading…' : `Load More  (${results.length} of ${total})`}
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </>
       )}

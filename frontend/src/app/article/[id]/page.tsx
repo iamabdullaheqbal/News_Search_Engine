@@ -1,43 +1,14 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, Link as LinkIcon, Bookmark } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import type { Metadata } from 'next';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { ArticleCard } from '@/components/ArticleCard';
+import { ArticleShareBar } from '@/components/ArticleShareBar';
 import type { Article, ArticleDetail } from '@/lib/api';
 import { toCardArticle } from '@/lib/api';
 import { sanitizeImageUrl } from '@/lib/sanitize';
-
-const Twitter = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    {...props}
-  >
-    <path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z" />
-  </svg>
-);
-
-const Facebook = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    {...props}
-  >
-    <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
-  </svg>
-);
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
@@ -88,6 +59,7 @@ export default async function ArticleDetailPage({ params }: { params: Promise<{ 
 
   const related = await fetchRelated(article.id);
   const heroImage = sanitizeImageUrl(article.image_url);
+  const articleUrl = `${process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'http://localhost:3000'}/article/${article.id}`;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -129,21 +101,7 @@ export default async function ArticleDetailPage({ params }: { params: Promise<{ 
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 text-charcoal-light">
-                <button aria-label="Share on Twitter" className="p-2 hover:bg-border rounded transition-colors">
-                  <Twitter className="w-4 h-4" />
-                </button>
-                <button aria-label="Share on Facebook" className="p-2 hover:bg-border rounded transition-colors">
-                  <Facebook className="w-4 h-4" />
-                </button>
-                <button aria-label="Copy link" className="p-2 hover:bg-border rounded transition-colors">
-                  <LinkIcon className="w-4 h-4" />
-                </button>
-                <span className="w-px h-5 bg-border mx-1" />
-                <button aria-label="Save article" className="p-2 hover:bg-border rounded transition-colors">
-                  <Bookmark className="w-4 h-4" />
-                </button>
-              </div>
+              <ArticleShareBar title={article.title} url={articleUrl} />
             </div>
           </div>
 

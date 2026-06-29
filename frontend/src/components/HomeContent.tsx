@@ -1,33 +1,51 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { getFeed, toCardArticle, Article } from '@/lib/api';
 import { ArticleCard } from './ArticleCard';
 
+const PAGE_SIZE = 20;
+
 export function HomeContent() {
   const { user, loading: authLoading } = useAuth();
   const [articles, setArticles] = useState<Article[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [updatedAt, setUpdatedAt] = useState('');
+  const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
-    if (authLoading) return; // wait for auth to resolve before fetching
-    getFeed(20)
+    if (authLoading) return;
+    setLoading(true);
+    getFeed(PAGE_SIZE, 0)
       .then((data) => {
-        setArticles(data);
+        setArticles(data.articles);
+        setTotal(data.total);
         setUpdatedAt(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
       })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [authLoading, user]); // refetch when auth state changes
+  }, [authLoading, user]);
+
+  const loadMore = () => {
+    startTransition(async () => {
+      try {
+        const data = await getFeed(PAGE_SIZE, articles.length);
+        setArticles((prev) => [...prev, ...data.articles]);
+        setTotal(data.total);
+      } catch {
+        // silently fail
+      }
+    });
+  };
 
   const separator = '\u2215\u2215';
   const isPersonalized = !!(user?.interests?.length);
   const personalizedLabel = isPersonalized ? 'Personalized' : "Editor's Picks";
-
   const hero = articles[0];
   const gridArticles = articles.slice(1);
+  const hasMore = articles.length < total;
 
   return (
     <div className="flex-1 min-w-0">
@@ -64,6 +82,17 @@ export function HomeContent() {
               {gridArticles.map((article) => (
                 <ArticleCard key={article.id} article={toCardArticle(article)} />
               ))}
+            </div>
+          )}
+          {hasMore && (
+            <div className="flex justify-center mt-12">
+              <button
+                onClick={loadMore}
+                disabled={isPending}
+                className="px-8 py-3 border border-charcoal text-xs font-bold tracking-widest uppercase hover:bg-charcoal hover:text-cream transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isPending ? 'Loading…' : `Load More  (${articles.length} of ${total})`}
+              </button>
             </div>
           )}
         </>

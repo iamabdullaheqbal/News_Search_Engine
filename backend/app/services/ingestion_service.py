@@ -26,6 +26,7 @@ from app.core.category_map import assign_frontend_category
 from app.core.settings import get_settings
 from app.db.models import Article
 from app.services.embedding import embed_texts
+from app.services.scraper import scrape_article_body
 
 logger = logging.getLogger("veritas")
 settings = get_settings()
@@ -350,8 +351,13 @@ async def save_article(
     db: AsyncSession,
     article_data: dict[str, Any],
     embedding: list[float] | None = None,
+    scraped_body: list[str] | None = None,
 ) -> Article | None:
-    """Persist a single article. Embedding should be pre-computed externally for batch efficiency."""
+    """Persist a single article.
+
+    - embedding: pre-computed externally for batch efficiency
+    - scraped_body: full paragraphs from scraper; falls back to API snippet if None
+    """
     if not article_data:
         return None
     url   = article_data.get("url")
@@ -361,7 +367,12 @@ async def save_article(
     if await article_exists(db, url):
         return None
 
-    body = article_data.get("body")
+    import json as _json
+    if scraped_body:
+        body = _json.dumps(scraped_body)
+    else:
+        body = article_data.get("body")  # API truncated snippet
+
     read_time = _estimate_read_time(title, article_data.get("dek"), body)
     processed_text = _lemmatize_text(f"{title} {article_data.get('dek') or ''} {body or ''}")
 
@@ -450,7 +461,24 @@ async def ingest_category(
         logger.info(f"✓ [{category}] fetched={fetched} inserted=0 skipped={skipped}")
         return {"category": category, "fetched": fetched, "inserted": 0, "skipped": skipped}
 
-    # Batch-compute embeddings for all unique candidates at once (much faster than one-by-one)
+    # ── Concurrent scraping ───────────────────────────────────────────────────
+    # Cap to 20 simultaneous HTTP connections to be polite to source servers.
+    # Each scrape has a 10s timeout (enforced inside scrape_article_body).
+    # Failures return None and fall back to the API snippet — never block ingestion.
+    logger.info(f"[{category}] Scraping full bodies for {len(unique_articles)} articles...")
+    semaphore = asyncio.Semaphore(20)
+
+    async def _scrape_safe(url: str) -> list[str] | None:
+        async with semaphore:
+            return await scrape_article_body(url)
+
+    scrape_tasks = [_scrape_safe(a["url"]) for a in unique_articles]
+    scraped_bodies: list[list[str] | None] = await asyncio.gather(*scrape_tasks)
+
+    scraped_count = sum(1 for b in scraped_bodies if b)
+    logger.info(f"[{category}] Scraped full body for {scraped_count}/{len(unique_articles)} articles")
+
+    # ── Batch embeddings ──────────────────────────────────────────────────────
     logger.info(f"[{category}] Computing embeddings for {len(unique_articles)} candidates...")
     texts_for_embedding = [
         f"{a['title']} {a.get('dek') or ''}" for a in unique_articles
@@ -461,10 +489,10 @@ async def ingest_category(
         logger.warning(f"[{category}] Embedding batch failed, proceeding without embeddings: {e}")
         embeddings = [None] * len(unique_articles)
 
-    # Save articles — duplicates already in DB are silently skipped by save_article
+    # ── Save to DB ────────────────────────────────────────────────────────────
     inserted = 0
-    for article_data, emb in zip(unique_articles, embeddings):
-        result = await save_article(db, article_data, embedding=emb)
+    for article_data, emb, scraped in zip(unique_articles, embeddings, scraped_bodies):
+        result = await save_article(db, article_data, embedding=emb, scraped_body=scraped)
         if result:
             inserted += 1
         else:

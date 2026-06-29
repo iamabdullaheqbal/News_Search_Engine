@@ -30,7 +30,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       if (params.get('auth_success') === '1') {
-        // Clean up the URL param without a page reload
         const clean = window.location.pathname + window.location.hash;
         window.history.replaceState({}, '', clean);
       }
@@ -56,6 +55,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .catch(() => setUser(null))
       )
       .finally(() => setLoading(false));
+  }, []);
+
+  // Re-validate auth when user switches back to this tab after being away.
+  // Access tokens expire in 30 minutes — this catches the case where a user
+  // leaves the tab open and returns to find their session expired.
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return;
+      getMe()
+        .then(setUser)
+        .catch(() =>
+          refreshToken()
+            .then(({ user }) => setUser(user))
+            .catch(() => setUser(null))
+        );
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {

@@ -3,7 +3,7 @@ import logging
 
 from app.core.celery_app import celery_app
 from app.db.database import AsyncSessionLocal
-from app.services.ingestion_service import ingest_all_categories
+from app.services.ingestion_service import ingest_all_categories, build_bm25_index
 
 logger = logging.getLogger("veritas")
 
@@ -11,8 +11,14 @@ logger = logging.getLogger("veritas")
 async def _run_ingestion(max_results: int = 25) -> list[dict]:
     async with AsyncSessionLocal() as db:
         results = await ingest_all_categories(db, max_results=max_results)
-    total_inserted = sum(r["inserted"] for r in results)
-    logger.info(f"Ingestion complete — total inserted: {total_inserted}")
+        total_inserted = sum(r["inserted"] for r in results)
+        logger.info(f"Ingestion complete — total inserted: {total_inserted}")
+
+        if total_inserted > 0:
+            logger.info("Rebuilding BM25 index with newly ingested articles...")
+            await build_bm25_index(db)
+            logger.info("BM25 index rebuilt.")
+
     return results
 
 

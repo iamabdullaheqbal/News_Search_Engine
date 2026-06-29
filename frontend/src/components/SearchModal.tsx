@@ -12,12 +12,33 @@ interface SearchModalProps {
   onClose: () => void;
 }
 
-const RECENT_SEARCHES = ['Interest rates', 'Silicon valley', 'Climate summit'];
+const RECENT_KEY = 'veritas_recent_searches';
+const MAX_RECENT = 6;
+
+function getRecentSearches(): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    return JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]');
+  } catch {
+    return [];
+  }
+}
+
+function addRecentSearch(q: string) {
+  if (typeof window === 'undefined') return;
+  try {
+    const existing = getRecentSearches().filter((s) => s !== q);
+    localStorage.setItem(RECENT_KEY, JSON.stringify([q, ...existing].slice(0, MAX_RECENT)));
+  } catch {
+    // ignore
+  }
+}
 
 export function SearchModal({ isOpen, onClose }: SearchModalProps) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Article[]>([]);
   const [searching, setSearching] = useState(false);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -26,6 +47,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
 
   useEffect(() => {
     if (isOpen) {
+      setRecentSearches(getRecentSearches());
       setTimeout(() => inputRef.current?.focus(), 10);
     }
   }, [isOpen]);
@@ -56,6 +78,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (query.trim()) {
+      addRecentSearch(query.trim());
       router.push(`/search?q=${encodeURIComponent(query.trim())}`);
       closeAndReset();
     }
@@ -99,16 +122,20 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
                 <span className="font-medium tracking-wider text-xs uppercase">Recent Searches</span>
               </div>
               <div className="space-y-1">
-                {RECENT_SEARCHES.map((term) => (
-                  <button
-                    key={term}
-                    className="w-full text-left px-3 py-2 rounded-md hover:bg-border/50 transition-colors flex items-center justify-between group"
-                    onClick={() => setQuery(term)}
-                  >
-                    <span>{term}</span>
-                    <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </button>
-                ))}
+                {recentSearches.length === 0 ? (
+                  <p className="text-xs text-charcoal-light/60 px-3 py-2">No recent searches yet.</p>
+                ) : (
+                  recentSearches.map((term) => (
+                    <button
+                      key={term}
+                      className="w-full text-left px-3 py-2 rounded-md hover:bg-border/50 transition-colors flex items-center justify-between group"
+                      onClick={() => setQuery(term)}
+                    >
+                      <span>{term}</span>
+                      <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </button>
+                  ))
+                )}
               </div>
             </div>
           ) : searching ? (

@@ -11,7 +11,7 @@ from app.core.rate_limit import limiter
 from app.core.settings import get_settings
 from app.core.validators import validate_interest_topics
 from app.db.database import get_db
-from app.db.models import Article, User
+from app.db.models import Article, User, ReadHistory
 from app.schemas.article import ArticleOut, ArticleDetail
 from app.schemas.auth import FollowsRequest
 from app.services.auth import get_current_user_optional
@@ -19,6 +19,7 @@ from app.services.ingestion_service import (
     CATEGORIES,
     ingest_all_categories,
     ingest_category,
+    build_bm25_index,
 )
 from app.services.interest import get_user_interests, parse_cookie_interests
 from app.services.search import (
@@ -78,9 +79,10 @@ async def article_count(
     return {"count": result.scalar_one()}
 
 
-@router.get("/feed", response_model=list[ArticleOut])
+@router.get("/feed")
 async def feed(
     limit: int = Query(default=20, ge=1, le=50),
+    offset: int = Query(default=0, ge=0),
     veritas_follows: Optional[str] = Cookie(default=None),
     user: Optional[User] = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_db),
@@ -89,7 +91,8 @@ async def feed(
         topics = await get_user_interests(user, db)
     else:
         topics = validate_interest_topics(parse_cookie_interests(veritas_follows))
-    return await get_feed_articles(topics, db, limit=limit)
+    total, articles = await get_feed_articles(topics, db, limit=limit, offset=offset)
+    return {"total": total, "articles": articles, "limit": limit, "offset": offset}
 
 
 @router.get("/trending", response_model=list[str])
@@ -100,15 +103,15 @@ async def trending(
     return await get_trending_titles(db, limit=limit)
 
 
-@router.get("/category/{category}", response_model=list[ArticleOut])
+@router.get("/category/{category}")
 async def by_category(
     category: str,
     limit: int = Query(default=20, ge=1, le=50),
     offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
 ):
-    _, articles = await get_articles_by_category(category, db, limit=limit, offset=offset)
-    return articles
+    total, articles = await get_articles_by_category(category, db, limit=limit, offset=offset)
+    return {"total": total, "articles": articles, "limit": limit, "offset": offset}
 
 
 # ---------------------------------------------------------------------------
@@ -162,10 +165,30 @@ async def related_articles(
 
 
 @router.get("/{article_id}", response_model=ArticleDetail)
-async def article_detail(article_id: str, db: AsyncSession = Depends(get_db)):
+async def article_detail(
+    article_id: str,
+    user: Optional[User] = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db),
+):
     article = await get_article_by_id(article_id, db)
     if not article:
         raise HTTPException(status_code=404, detail="Article not found")
+
+    # Record read history for authenticated users (fire-and-forget; never blocks the response)
+    if user:
+        try:
+            existing = await db.execute(
+                select(ReadHistory).where(
+                    ReadHistory.user_id == user.id,
+                    ReadHistory.article_id == article_id,
+                )
+            )
+            if not existing.scalar_one_or_none():
+                db.add(ReadHistory(user_id=user.id, article_id=article_id))
+                await db.commit()
+        except Exception:
+            logger.debug("Failed to record read history", exc_info=True)
+
     return article
 
 
@@ -194,9 +217,15 @@ async def ingest(
     try:
         if category:
             stats = await ingest_category(db, category.lower())
-            return {"results": [stats]}
-        stats = await ingest_all_categories(db, max_results)
-        return {"results": stats}
+            results = [stats]
+        else:
+            results = await ingest_all_categories(db, max_results)
+
+        total_inserted = sum(r["inserted"] for r in results)
+        if total_inserted > 0:
+            await build_bm25_index(db)
+
+        return {"results": results}
     except Exception:
         logger.error("Ingestion endpoint error", exc_info=True)
         raise HTTPException(status_code=500, detail="Ingestion failed")

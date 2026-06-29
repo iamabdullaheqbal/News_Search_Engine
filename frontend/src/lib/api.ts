@@ -83,6 +83,20 @@ export interface User {
   interests: string[];
 }
 
+export interface CategoryResponse {
+  total: number;
+  articles: Article[];
+  limit: number;
+  offset: number;
+}
+
+export interface FeedResponse {
+  total: number;
+  articles: Article[];
+  limit: number;
+  offset: number;
+}
+
 export interface SearchResponse {
   query: string;
   total: number;
@@ -110,14 +124,14 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 export const getCategories = () =>
   apiFetch<string[]>("/api/articles/categories");
 
-export const getFeed = (limit = 20) =>
-  apiFetch<Article[]>(`/api/articles/feed?limit=${limit}`);
+export const getFeed = (limit = 20, offset = 0) =>
+  apiFetch<FeedResponse>(`/api/articles/feed?limit=${limit}&offset=${offset}`);
 
 export const getTrending = (limit = 5) =>
   apiFetch<string[]>(`/api/articles/trending?limit=${limit}`);
 
 export const getArticlesByCategory = (category: string, limit = 20, offset = 0) =>
-  apiFetch<Article[]>(`/api/articles/category/${category}?limit=${limit}&offset=${offset}`);
+  apiFetch<CategoryResponse>(`/api/articles/category/${category}?limit=${limit}&offset=${offset}`);
 
 export const getArticleById = (id: string) =>
   apiFetch<ArticleDetail>(`/api/articles/${id}`);
