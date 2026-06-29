@@ -20,7 +20,7 @@
 
 ## About
 
-Veritas is an NLP course project built as part of the **Natural Language Processing** course at the **University of Management and Technology (UMT)**, Lahore — BSCS 6th Semester.
+Veritas is an NLP course project built as part of the **Natural Language Processing** course at the **University of Management and Technology (UMT)**, Sialkot — BSCS 6th Semester.
 
 The project applies NLP concepts studied in class — text embeddings, semantic similarity, and information retrieval — inside a full-stack web application. It aggregates real news articles from two public APIs, stores them with dense vector representations in PostgreSQL, and retrieves them through a three-stage hybrid search pipeline.
 
@@ -408,5 +408,5 @@ Raw API categories are mapped to frontend display categories using keyword detec
 
 ---
 
-*NLP Course Project — BSCS 6th Semester, UMT Lahore.*  
+*NLP Course Project — BSCS 6th Semester, UMT Sialkot.*  
 *Always verify important news through trusted, authoritative sources.*
