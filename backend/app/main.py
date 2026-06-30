@@ -10,9 +10,10 @@ from fastapi.responses import JSONResponse
 from app.api import routes_articles, routes_auth, routes_search
 from app.core.settings import get_settings
 from app.db.database import AsyncSessionLocal, engine
-from app.db.models import Base
 from app.services.ingestion_service import build_bm25_index
+from app.services.text_processing import ensure_nltk_data
 from app.core.validators import refresh_valid_topics
+from app.db.schema import ensure_schema
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("veritas")
@@ -21,6 +22,7 @@ settings = get_settings()
 
 def _warm_models() -> None:
     """Load both ML models into memory. Runs in a thread pool to avoid blocking the event loop."""
+    ensure_nltk_data()
     try:
         from app.services.embedding import get_embedding_model
         get_embedding_model()
@@ -40,9 +42,9 @@ def _warm_models() -> None:
 async def lifespan(app: FastAPI):
     try:
         async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
+            await ensure_schema(conn)
     except Exception as e:
-        logger.warning(f"create_all skipped or partial: {e}")
+        logger.warning(f"Schema bootstrap skipped or partial: {e}")
 
     try:
         async with AsyncSessionLocal() as db:
@@ -51,8 +53,6 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Startup index/validator build failed: {e}", exc_info=True)
 
-    # Warm ML models in a thread so the event loop stays responsive.
-    # First search requests will work correctly as soon as this completes.
     logger.info("Warming ML models (embedding + reranker) in background...")
     loop = asyncio.get_event_loop()
     with ThreadPoolExecutor(max_workers=1) as pool:

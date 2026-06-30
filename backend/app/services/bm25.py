@@ -1,11 +1,16 @@
 """BM25 in-memory index, rebuilt on startup from DB articles."""
 from __future__ import annotations
+
 import re
 from dataclasses import dataclass, field
+
 from rank_bm25 import BM25Okapi
 
+from app.services.text_processing import tokenize_for_bm25
 
-def _tokenize(text: str) -> list[str]:
+
+def _index_tokens(text: str) -> list[str]:
+    """Tokenize pre-lemmatized index text without re-lemmatizing."""
     return re.findall(r"\w+", text.lower())
 
 
@@ -16,14 +21,16 @@ class BM25Index:
 
     def build(self, articles: list[tuple[str, str]]) -> None:
         """articles: list of (id, text) tuples."""
-        self.article_ids = [a[0] for a in articles]
-        corpus = [_tokenize(a[1]) for a in articles]
+        self.article_ids = [article_id for article_id, _ in articles]
+        corpus = [_index_tokens(text) for _, text in articles]
         self._index = BM25Okapi(corpus)
 
     def search(self, query: str, top_k: int = 50) -> list[tuple[str, float]]:
         if self._index is None or not self.article_ids:
             return []
-        tokens = _tokenize(query)
+        tokens = tokenize_for_bm25(query)
+        if not tokens:
+            return []
         scores = self._index.get_scores(tokens)
         ranked = sorted(
             zip(self.article_ids, scores.tolist()),

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { LIVE_WIRE, getTrending } from '@/lib/api';
+import { getLiveWire, getTrending, LiveWireItem } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useFollows } from '@/hooks/useFollows';
 import { useCategories } from '@/hooks/useCategories';
@@ -12,14 +12,17 @@ export function Sidebar() {
   const { follows: cookieFollows, toggleFollow: toggleCookieFollow } = useFollows();
   const categories = useCategories();
   const [trending, setTrending] = useState<string[]>([]);
+  const [liveWire, setLiveWire] = useState<LiveWireItem[]>([]);
 
   useEffect(() => {
     getTrending(5)
       .then((data) => setTrending(data))
       .catch(() => {/* backend not available yet */});
+    getLiveWire(5)
+      .then((data) => setLiveWire(data))
+      .catch(() => {/* backend not available yet */});
   }, []);
 
-  // Determine current follows: DB for logged-in users, cookie for guests
   const follows = user ? user.interests : cookieFollows;
 
   const handleToggle = (category: string) => {
@@ -36,7 +39,6 @@ export function Sidebar() {
 
   return (
     <aside className="w-full lg:w-80 flex-shrink-0 space-y-10 lg:space-y-12">
-      {/* Trending Now */}
       <section>
         <h3 className="text-xs font-bold tracking-wider uppercase mb-6">Trending Now</h3>
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-1">
@@ -53,7 +55,6 @@ export function Sidebar() {
         </div>
       </section>
 
-      {/* Your Follows */}
       <section className="bg-cream-dark/30 border border-border p-6">
         <h3 className="text-xs font-bold tracking-wider uppercase mb-2">Your Follows</h3>
         <p className="text-sm text-charcoal-light mb-6 leading-relaxed">{privacyNote}</p>
@@ -78,19 +79,20 @@ export function Sidebar() {
         </div>
       </section>
 
-      {/* Live Wire */}
       <section>
         <div className="flex items-center gap-2 mb-6">
           <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
           <h3 className="text-xs font-bold tracking-wider uppercase">Live Wire</h3>
         </div>
         <div className="space-y-0 border-t border-border">
-          {LIVE_WIRE.map((item, i) => (
-            <div key={i} className="py-4 border-b border-border flex gap-4 text-sm">
-              <span className="font-bold text-charcoal min-w-[40px]">{item.time}</span>
-              <p className="text-charcoal-light leading-snug">{item.text}</p>
-            </div>
-          ))}
+          {(liveWire.length > 0 ? liveWire : [{ time: '—', text: 'Loading latest headlines…' }]).map(
+            (item, i) => (
+              <div key={i} className="py-4 border-b border-border flex gap-4 text-sm">
+                <span className="font-bold text-charcoal min-w-[40px]">{item.time}</span>
+                <p className="text-charcoal-light leading-snug">{item.text}</p>
+              </div>
+            )
+          )}
         </div>
       </section>
     </aside>

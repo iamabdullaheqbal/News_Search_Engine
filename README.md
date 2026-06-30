@@ -34,7 +34,7 @@ User submits query
 BM25 (rank-bm25)              Semantic (pgvector cosine)
 top-30 candidates     +        top-30 candidates
         ↓                              ↓
-            Union of candidate IDs
+            Union of candidate IDs (RRF merge)
                     ↓
      Optional category filter (SQL WHERE)
                     ↓
@@ -46,8 +46,9 @@ top-30 candidates     +        top-30 candidates
         Paginated response
 ```
 
-**BM25** handles exact keyword matches with NLTK lemmatization.  
-**Semantic search** handles paraphrases and conceptual queries via pgvector cosine distance.  
+**BM25** handles exact keyword matches with NLTK lemmatization at both index and query time.  
+**Semantic search** handles paraphrases and conceptual queries via pgvector cosine distance on the same title+dek+body text used for BM25.  
+**Reciprocal Rank Fusion (RRF)** merges BM25 and semantic candidate lists before reranking.  
 **Cross-encoder** re-scores the union using full query–document attention, giving relevance quality well above either method alone.
 
 ---
@@ -58,7 +59,9 @@ top-30 candidates     +        top-30 candidates
 - **Dual-source ingestion** — GNews and NewsAPI with quota-aware pagination (~4,000+ articles per run)
 - **Full body scraping** — concurrent scraper fetches full article text from source URLs at ingest time
 - **Batch embeddings** — all articles embedded in a single `sentence-transformers` batch call per category
-- **Personalized feed** — recency-weighted ranking with category diversity injection; logged-in users follow topics, guests use a cookie-backed follows system
+- **Personalized feed** — recency-weighted ranking with category diversity; deprioritizes articles you've already read
+- **Trending** — most-read article titles in the last 7 days (falls back to latest headlines)
+- **Live Wire** — latest headlines from the database with publication times
 - **Read history** — article views tracked per user in the database
 - **Semantically related articles** — article detail page shows 6 related articles found via the hybrid search pipeline, not just same-category articles
 - **JWT auth + Google OAuth** — httpOnly cookie delivery with server-side refresh token rotation
@@ -86,7 +89,7 @@ top-30 candidates     +        top-30 candidates
 | Dense embeddings | sentence-transformers (`all-MiniLM-L6-v2`) | ≥ 5.5.1 |
 | Cross-encoder reranking | sentence-transformers (`ms-marco-MiniLM-L-6-v2`) | ≥ 5.5.1 |
 | Sparse retrieval | rank-bm25 (BM25Okapi) | ≥ 0.2.2 |
-| Text processing | NLTK (lemmatization) + spaCy | ≥ 3.9.4 / ≥ 3.8.14 |
+| Text processing | NLTK (lemmatization) | ≥ 3.9.4 |
 | Web scraping | BeautifulSoup4 + lxml | ≥ 4.12 / ≥ 5.2 |
 | Auth | python-jose + bcrypt | ≥ 3.5.0 / ≥ 5.0.0 |
 | Task queue | Celery | ≥ 5.6.3 |
@@ -196,9 +199,17 @@ News_Search_Engine/
 - **Python 3.13+**
 - **Node.js 18+**
 - **PostgreSQL** with the [pgvector](https://github.com/pgvector/pgvector) extension enabled
-- **Redis** (optional in development — auth and search still work without it)
+- **Redis** (optional in development — auth still works without it; rate limiting and BM25 cross-worker sync require Redis)
 - **[uv](https://docs.astral.sh/uv/getting-started/installation/)** — Python package manager
 - API keys for **[GNews](https://gnews.io)** and/or **[NewsAPI](https://newsapi.org)**
+
+### Quick infrastructure with Docker
+
+```bash
+docker compose up -d
+```
+
+This starts PostgreSQL (with pgvector) and Redis. Use `DATABASE_URL=postgresql+asyncpg://veritas:veritas@localhost:5432/veritas` in `backend/.env`.
 
 ---
 
@@ -305,6 +316,8 @@ uv run python run_ingestion.py
 
 Fetches from GNews and NewsAPI across all 9 categories, scrapes full article bodies, computes batch embeddings, saves to the DB, and rebuilds the BM25 index. Expect ~4,000+ articles per run on free-tier API accounts.
 
+**Re-run ingestion after upgrading** if you need to refresh existing article embeddings (now computed from title + dek + body, not title + dek only).
+
 Ingestion can also be triggered via the admin endpoint:
 
 ```bash
@@ -327,7 +340,8 @@ curl -X POST "http://localhost:8000/api/articles/ingest?category=technology" \
 |---|---|---|---|
 | `GET` | `/api/articles/categories` | — | Distinct categories from DB |
 | `GET` | `/api/articles/feed` | optional | Personalized ranked feed |
-| `GET` | `/api/articles/trending` | — | Top N recent article titles |
+| `GET` | `/api/articles/trending` | — | Most-read titles (7-day window, recent fallback) |
+| `GET` | `/api/articles/live-wire` | — | Latest headlines with publication times |
 | `GET` | `/api/articles/category/{category}` | — | Paginated articles by category |
 | `GET` | `/api/articles/{id}` | optional | Article detail + records read history |
 | `GET` | `/api/articles/{id}/related` | — | Semantically related articles |
@@ -401,10 +415,10 @@ Raw API categories are mapped to frontend display categories using keyword detec
 
 ## Known Limitations
 
-- **BM25 index is process-local** — multiple uvicorn workers each hold their own index; new articles only appear in BM25 after the next index rebuild
-- **No database migrations** — schema managed via `create_all`; column changes require manual intervention
+- **BM25 index is in-memory** — each worker holds its own copy; Redis version sync triggers rebuilds across workers after ingestion (requires Redis)
+- **Schema bootstrap** — `ensure_schema()` creates tables and the pgvector HNSW index on startup; no Alembic migration history
 - **No test suite** — the project has no automated tests
-- **Redis is optional** — without Redis, token revocation is skipped and rate limiting is disabled; auth cookies still clear on logout
+- **Redis is optional** — without Redis, token revocation is skipped, rate limiting is disabled, and BM25 sync across workers is unavailable
 
 ---
 

@@ -47,18 +47,6 @@ export const CATEGORY_TAGLINES: Record<string, string> = {
   HEALTH: "Medicine, wellness, and the science of living better.",
 };
 
-// ── Static UI copy (live wire ticker) ─────────────────────────────────────
-
-export const LIVE_WIRE = [
-  { time: "12:45", text: "FTSE 100 recovers early morning losses, closes up 0.2%." },
-  { time: "12:12", text: "Prime Minister arrives in Brussels for emergency trade summit." },
-  { time: "11:58", text: "SpaceX confirms successful landing of Heavy booster core." },
-  { time: "11:30", text: "EU council greenlights AI transparency directive in plenary vote." },
-  { time: "10:15", text: "Oil prices stabilize after brief spike amid supply concerns." },
-];
-
-// ── API types ──────────────────────────────────────────────────────────────
-
 export interface Article {
   id: string;
   title: string;
@@ -103,6 +91,11 @@ export interface SearchResponse {
   results: Article[];
 }
 
+export interface LiveWireItem {
+  time: string;
+  text: string;
+}
+
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   // In the browser, use a relative path — Next.js rewrites /api/* to the backend.
   // On the server (SSR), use the full URL directly.
@@ -129,6 +122,9 @@ export const getFeed = (limit = 20, offset = 0) =>
 
 export const getTrending = (limit = 5) =>
   apiFetch<string[]>(`/api/articles/trending?limit=${limit}`);
+
+export const getLiveWire = (limit = 5) =>
+  apiFetch<LiveWireItem[]>(`/api/articles/live-wire?limit=${limit}`);
 
 export const getArticlesByCategory = (category: string, limit = 20, offset = 0) =>
   apiFetch<CategoryResponse>(`/api/articles/category/${category}?limit=${limit}&offset=${offset}`);

@@ -26,9 +26,11 @@ from app.services.search import (
     get_article_by_id,
     get_articles_by_category,
     get_feed_articles,
+    get_live_wire,
     get_trending_titles,
     search_articles,
 )
+from app.services.text_processing import build_retrieval_text
 
 logger = logging.getLogger("veritas")
 router = APIRouter(prefix="/api/articles", tags=["articles"])
@@ -91,7 +93,9 @@ async def feed(
         topics = await get_user_interests(user, db)
     else:
         topics = validate_interest_topics(parse_cookie_interests(veritas_follows))
-    total, articles = await get_feed_articles(topics, db, limit=limit, offset=offset)
+    total, articles = await get_feed_articles(
+        topics, db, limit=limit, offset=offset, user_id=user.id if user else None
+    )
     return {"total": total, "articles": articles, "limit": limit, "offset": offset}
 
 
@@ -100,7 +104,17 @@ async def trending(
     limit: int = Query(default=5, ge=1, le=20),
     db: AsyncSession = Depends(get_db),
 ):
+    """Most-read titles in the last 7 days, with recent headlines as fallback."""
     return await get_trending_titles(db, limit=limit)
+
+
+@router.get("/live-wire")
+async def live_wire(
+    limit: int = Query(default=5, ge=1, le=20),
+    db: AsyncSession = Depends(get_db),
+):
+    """Latest headlines with publication times for the sidebar live wire."""
+    return await get_live_wire(db, limit=limit)
 
 
 @router.get("/category/{category}")
@@ -151,7 +165,7 @@ async def related_articles(
         if not article:
             raise HTTPException(status_code=404, detail="Article not found")
 
-        query_text = f"{article.title} {article.dek or ''}".strip()
+        query_text = build_retrieval_text(article.title, article.dek, article.body).strip()
 
         # Fetch one extra so we can exclude the article itself after filtering
         _, candidates = await search_articles(query_text, db, limit=limit + 1)
@@ -204,7 +218,6 @@ async def ingest(
         default=None,
         description=f"One of: {', '.join(CATEGORIES)}",
     ),
-    max_results: int = Query(default=25, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
     _: None = Depends(verify_ingest_key),
 ):
@@ -219,7 +232,7 @@ async def ingest(
             stats = await ingest_category(db, category.lower())
             results = [stats]
         else:
-            results = await ingest_all_categories(db, max_results)
+            results = await ingest_all_categories(db)
 
         total_inserted = sum(r["inserted"] for r in results)
         if total_inserted > 0:

@@ -21,7 +21,6 @@ celery_app.conf.update(
         "ingest-articles-every-6-hours": {
             "task": "app.tasks.ingestion_tasks.run_ingestion_task",
             "schedule": crontab(minute=0, hour="*/6"),
-            "kwargs": {"max_results": 25},
         },
     },
 )

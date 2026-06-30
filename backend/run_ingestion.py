@@ -17,13 +17,12 @@ logger = logging.getLogger("veritas")
 
 async def main():
     from app.db.database import engine, AsyncSessionLocal
-    from app.db.models import Base
+    from app.db.schema import ensure_schema
     from app.services.ingestion_service import ingest_all_categories, build_bm25_index
 
-    # Ensure tables exist
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    logger.info("Tables ready.")
+        await ensure_schema(conn)
+    logger.info("Schema ready.")
 
     async with AsyncSessionLocal() as db:
         logger.info("Starting ingestion from GNews + NewsAPI...")

@@ -25,8 +25,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.category_map import assign_frontend_category
 from app.core.settings import get_settings
 from app.db.models import Article
+from app.services.bm25_sync import mark_bm25_rebuilt
 from app.services.embedding import embed_texts
 from app.services.scraper import scrape_article_body
+from app.services.text_processing import build_retrieval_text, lemmatize_text
 
 logger = logging.getLogger("veritas")
 settings = get_settings()
@@ -94,39 +96,6 @@ REQUEST_DELAY_SECS = 0.25
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
-
-_nltk_downloaded = False
-
-def _ensure_nltk_downloaded():
-    global _nltk_downloaded
-    if not _nltk_downloaded:
-        try:
-            import nltk
-            nltk.download('wordnet', quiet=True)
-            nltk.download('omw-1.4', quiet=True)
-            nltk.download('punkt', quiet=True)
-            nltk.download('punkt_tab', quiet=True)
-            _nltk_downloaded = True
-        except Exception as e:
-            logger.warning(f"Failed to download NLTK data: {e}")
-
-
-def _lemmatize_text(text: str) -> str:
-    if not text:
-        return ""
-    _ensure_nltk_downloaded()
-    try:
-        import nltk
-        from nltk.tokenize import word_tokenize
-        from nltk.stem import WordNetLemmatizer
-        lemmatizer = WordNetLemmatizer()
-        tokens = word_tokenize(text.lower())
-        lemmatized = [lemmatizer.lemmatize(token) for token in tokens if token.isalnum()]
-        return " ".join(lemmatized)
-    except Exception as e:
-        logger.warning(f"Error lemmatizing text: {e}")
-        return " ".join(re.findall(r"\w+", text.lower()))
-
 
 def _estimate_read_time(title: str, dek: str | None, body: str | None) -> str:
     text = f"{title} {dek or ''} {body or ''}"
@@ -374,7 +343,13 @@ async def save_article(
         body = article_data.get("body")  # API truncated snippet
 
     read_time = _estimate_read_time(title, article_data.get("dek"), body)
-    processed_text = _lemmatize_text(f"{title} {article_data.get('dek') or ''} {body or ''}")
+    plain_text = build_retrieval_text(
+        title,
+        article_data.get("dek"),
+        body=article_data.get("body"),
+        scraped_body=scraped_body,
+    )
+    processed_text = lemmatize_text(plain_text)
 
     article = Article(
         id=article_data["id"],
@@ -403,7 +378,7 @@ async def save_article(
 
 # ── BM25 index bootstrap ──────────────────────────────────────────────────────
 
-async def build_bm25_index(db: AsyncSession) -> None:
+async def build_bm25_index(db: AsyncSession, *, bump_version: bool = True) -> None:
     """Load all articles from DB and build the in-memory BM25 index."""
     from app.services.bm25 import bm25_index
 
@@ -414,6 +389,8 @@ async def build_bm25_index(db: AsyncSession) -> None:
     bm25_index.build(
         [(r[0], r[4] if r[4] else f"{r[1]} {r[2] or ''} {r[3]}") for r in rows]
     )
+    if bump_version:
+        mark_bm25_rebuilt()
 
 
 # ── Orchestration ─────────────────────────────────────────────────────────────
@@ -481,7 +458,13 @@ async def ingest_category(
     # ── Batch embeddings ──────────────────────────────────────────────────────
     logger.info(f"[{category}] Computing embeddings for {len(unique_articles)} candidates...")
     texts_for_embedding = [
-        f"{a['title']} {a.get('dek') or ''}" for a in unique_articles
+        build_retrieval_text(
+            a["title"],
+            a.get("dek"),
+            body=a.get("body"),
+            scraped_body=scraped,
+        )
+        for a, scraped in zip(unique_articles, scraped_bodies)
     ]
     try:
         embeddings = embed_texts(texts_for_embedding)
@@ -503,10 +486,7 @@ async def ingest_category(
     return {"category": category, "fetched": fetched, "inserted": inserted, "skipped": skipped}
 
 
-async def ingest_all_categories(
-    db: AsyncSession,
-    max_results: int | None = None,   # kept for API compat, ignored (always uses max)
-) -> list[dict[str, Any]]:
+async def ingest_all_categories(db: AsyncSession) -> list[dict[str, Any]]:
     newsapi_done: set[str] = set()
     results = []
     for category in CATEGORIES:
